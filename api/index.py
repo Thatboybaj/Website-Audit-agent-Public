@@ -37,6 +37,24 @@ except ImportError:
 
 app = FastAPI(title="Website Audit Agent", version="1.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def restore_vercel_path(request: Request, call_next):
+    """Vercel rewrites every URL to /api/index; vercel.json passes the original path as ?__path=."""
+    from urllib.parse import parse_qsl, urlencode
+    scope = request.scope
+    qs = parse_qsl(scope.get("query_string", b"").decode(), keep_blank_values=True)
+    orig = next((v for k, v in qs if k == "__path"), None)
+    if orig is not None:
+        scope["path"] = "/" + orig.lstrip("/")
+        scope["raw_path"] = scope["path"].encode()
+        scope["query_string"] = urlencode([(k, v) for k, v in qs if k != "__path"]).encode()
+    elif scope["path"].startswith("/api/index"):
+        scope["path"] = scope["path"][len("/api/index"):] or "/"
+    return await call_next(request)
+
+
 SERVERLESS = bool(os.getenv("VERCEL"))  # no headless browser on Vercel
 BRAND = os.getenv("AUDIT_BRAND", "brightajiboye.com")
 DEMO_PAGES = int(os.getenv("DEMO_PAGES", "5"))
