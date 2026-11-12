@@ -22,7 +22,7 @@ async def run_psi(url: str, strategy: str, key: str | None) -> dict:
     params = [("url", url), ("strategy", strategy)] + [("category", c) for c in CATEGORIES]
     if key:
         params.append(("key", key))
-    async with httpx.AsyncClient(timeout=120) as c:
+    async with httpx.AsyncClient(timeout=float(os.getenv("PSI_TIMEOUT", "55"))) as c:
         r = await c.get(ENDPOINT, params=params)
         r.raise_for_status()
         data = r.json()
