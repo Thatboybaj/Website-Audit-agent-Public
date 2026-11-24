@@ -1,192 +1,160 @@
-"""HTML report (HTML edition only) — styled after the Website Audit Cheat Sheet."""
+"""Client-facing HTML/PDF report — ledger-paper style (light version of the AuditPilot system), white-label ready."""
 from __future__ import annotations
 
-from jinja2 import Environment, BaseLoader
+from jinja2 import BaseLoader, Environment
 
 from .scoring import BANDS
 
-COLORS = ["#7c5cff", "#2e9e44", "#f5b82e", "#2f7fe0", "#f28c28", "#2f7fe0", "#e8508a", "#7c5cff", "#2e9e44", "#f5b82e"]
-TINTS = ["#ece6ff", "#e3f3e6", "#fdf2d3", "#e2eefc", "#fde9d6", "#e2eefc", "#fce3ed", "#ece6ff", "#e3f3e6", "#fdf2d3"]
-ICONS = [  # simple 24px line icons
-    '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
-    '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/>',
-    '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
-    '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>',
-    '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
-    '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-    '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
-    '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-    '<circle cx="12" cy="4.5" r="2"/><path d="M5 9h14M12 9v12M8 21l4-7 4 7"/>',
-    '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
-]
-
 TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Website Audit — {{ r.url }}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>{{ host }} — Website audit</title>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#141414;--muted:#6f6a62;--line:rgba(20,20,20,.08);--bg:#ebe8e2;--card:rgba(255,255,255,.66);--pass:#2e9e5b;--warn:#e3a23b;--fail:#d9443b;--mono:"JetBrains Mono",ui-monospace,monospace}
-*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;background:radial-gradient(45% 30% at 10% 0%,#f3c39c 0,transparent 70%),radial-gradient(40% 30% at 90% 0%,#d6e19e 0,transparent 70%),radial-gradient(50% 40% at 80% 100%,#ecd0b4 0,transparent 70%),var(--bg);background-attachment:fixed}
-.wrap{max-width:1180px;margin:0 auto;padding:40px 24px 60px}
-h1{font-size:72px;line-height:.88;font-weight:900;letter-spacing:-.045em;margin:0}
-.sub{font-size:22px;letter-spacing:8px;color:#555;font-weight:300;margin:8px 0 6px}
-.eyebrow{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.top{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:start}
-.panel{background:var(--card);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:24px;backdrop-filter:blur(20px);box-shadow:0 12px 40px rgba(40,30,15,.06)}
-.meta{color:var(--muted);font-size:14px;margin-top:14px}.meta a{color:inherit}
-.health{display:flex;gap:24px;align-items:center}
-.band{display:inline-block;padding:4px 14px;border-radius:8px;font-weight:800;font-size:13px;letter-spacing:1px;text-transform:uppercase}
-.guide div{display:flex;gap:12px;align-items:center;margin:7px 0;font-size:13px}
-.guide b{display:inline-block;width:70px;text-align:center;color:#fff;border-radius:6px;padding:3px 0;font-size:12px}
-.guide .on{outline:2px solid #111;outline-offset:2px;border-radius:6px}
-h2{font-size:14px;letter-spacing:2px;text-transform:uppercase;margin:38px 0 14px}
-.summary{font-size:15px;white-space:pre-wrap}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.card{background:var(--card);border:1px solid rgba(255,255,255,.8);border-radius:22px;padding:18px;display:flex;flex-direction:column;backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(40,30,15,.05)}
-.num{width:26px;height:26px;border-radius:50%;color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center}
-.ic{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;margin:-4px auto 8px}
-.ic svg{width:28px;height:28px;fill:none;stroke:#111;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.card h3{font-size:14px;text-transform:uppercase;text-align:center;margin:0 0 10px;letter-spacing:.3px}
-.score{font-size:30px;font-weight:900;text-align:center;margin-bottom:8px}.score small{font-size:13px;color:var(--muted);font-weight:500}
-.checks{list-style:none;padding:0;margin:0 0 12px;flex:1}
-.checks li{font-size:12.5px;margin:5px 0}
-.checks details summary{cursor:pointer;list-style:none;display:flex;gap:7px;align-items:flex-start}
-.checks details summary::-webkit-details-marker{display:none}
-.dot{flex:none;width:15px;height:15px;border-radius:50%;margin-top:1px;color:#fff;font-size:10px;display:grid;place-items:center;font-weight:900}
-.pass{background:var(--pass)}.warn{background:var(--warn)}.fail{background:var(--fail)}.info,.skip{background:#b8b3a8}
-.det{font-size:12px;color:#444;background:#faf8f3;border-radius:8px;padding:8px 10px;margin:6px 0 4px 22px}
-.det .fix{color:#111;margin-top:4px}.det code{font-size:11px;display:block;color:#666;word-break:break-all}
-.km{background:rgba(255,255,255,.6);border:0;border-radius:14px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center}
-.km span{font-size:10px;letter-spacing:1px;font-weight:800;text-transform:uppercase}.km b{font-size:12px}.km strong{font-size:16px}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.step{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}
-.step .n{flex:none;width:26px;height:26px;border-radius:50%;background:#d8f36a;color:#141414!important;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
-.step h4{margin:0 0 4px;font-size:13px;letter-spacing:1px;text-transform:uppercase}
-.step ol,.step ul{margin:6px 0 0;padding-left:18px;font-size:13px}.step li{margin:4px 0}
-.tag{font-size:10px;padding:1px 6px;border-radius:5px;background:#f0ede6;color:#555;margin-left:4px;white-space:nowrap}
-.wins{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
-.win{background:#151515;color:#fff;border-radius:18px;padding:16px;font-size:13px}.win ul{color:#c9c4ba!important}
-.win b{display:block;margin-bottom:6px}.win ul{padding-left:16px;margin:0;color:#444;font-size:12px}
-.done{color:var(--pass);font-weight:700}
-table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
-.shots{display:flex;gap:18px;align-items:flex-start}.shots img{border-radius:10px;border:1px solid var(--line);height:400px;object-fit:cover;object-position:top}
-pre{white-space:pre-wrap;font-family:inherit;font-size:14px;margin:0}
-.foot{margin-top:40px;background:#151515;color:#fff;border-radius:14px;padding:18px 24px;display:flex;justify-content:space-between;gap:20px;font-size:14px}
-.up{color:var(--pass)}.down{color:var(--fail)}
-@media(max-width:1000px){.grid,.wins{grid-template-columns:repeat(2,1fr)}.top,.cols{grid-template-columns:1fr}h1{font-size:44px}}
-@page{size:A4;margin:10mm}
-@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#f4f2ee!important}.wrap{max-width:none;padding:0}
-html{zoom:.68}.top{grid-template-columns:1.2fr 1fr!important}.cols{grid-template-columns:1fr 1fr!important}h1{font-size:60px}.grid{grid-template-columns:repeat(3,1fr)}.wins{grid-template-columns:repeat(3,1fr)}
-.panel.health,.guide,.win,tr,.checks li,.step .n{break-inside:avoid}.card,.step{break-inside:auto}.panel,.card{backdrop-filter:none;box-shadow:none}h2{break-after:avoid}.shots img{height:300px}}
+:root{--ink:#0e1116;--paper:#f4f1ea;--card:#fbfaf6;--line:rgba(14,17,22,.1);--muted:#5d626b;--acc:{{ accent }};--pass:#1f9d5c;--warn:#c98a12;--fail:#d23f3f;--aeo:#2340d9}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 14.5px/1.55 "Inter Tight",system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:44px 36px 60px}
+.m{font:500 10.5px "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font:500 64px/.95 "Funnel Display",sans-serif;letter-spacing:-.05em;margin:14px 0 8px}
+h2{font:500 30px/1.05 "Funnel Display",sans-serif;letter-spacing:-.04em;margin:44px 0 14px;break-after:avoid}
+h3{font:500 19px "Funnel Display",sans-serif;letter-spacing:-.02em;margin:0}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:1px solid var(--line);padding-bottom:16px}
+.brand{display:flex;align-items:center;gap:10px;font:500 18px "Funnel Display",sans-serif}.brand img{height:30px}
+.mk{width:20px;height:20px;border-radius:50%;border:2.2px solid var(--acc);position:relative}.mk:after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--ink)}
+.host{font-size:15px;color:var(--muted)}
+.scores{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;break-inside:avoid}
+.dark{background:var(--ink);color:var(--paper);border-color:var(--ink)}.dark .m{color:#a9aeb7}
+.g{display:flex;gap:14px;align-items:center;margin-top:8px}
+.band{display:inline-block;font:500 10px "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;margin-bottom:6px}
+.n3{display:flex;gap:18px;margin-top:10px}.n3 b{display:block;font:500 30px/1 "Funnel Display",sans-serif;letter-spacing:-.04em}.n3 span{font:400 10px "JetBrains Mono",monospace;text-transform:uppercase;color:var(--muted)}
+.summary{white-space:pre-wrap;font-size:15px;margin:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+ol.prio{list-style:none;margin:0;padding:0;counter-reset:p}ol.prio li{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:12px 0;border-top:1px solid var(--line);break-inside:avoid}
+ol.prio li:before{counter-increment:p;content:counter(p,decimal-leading-zero);font:500 11px "JetBrains Mono",monospace;color:var(--muted);padding-top:3px}
+.prio b{font-weight:600}.prio p{margin:3px 0 0;color:var(--muted)}.prio .fx{color:var(--ink)}
+.tag{display:inline-block;font:500 9.5px "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:4px}
+.areas{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ah{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.ah .s{font:500 34px/1 "Funnel Display",sans-serif;letter-spacing:-.04em}
+.bar{height:4px;border-radius:4px;background:rgba(14,17,22,.08);margin-bottom:8px}.bar i{display:block;height:100%;border-radius:4px}
+.ck{display:grid;grid-template-columns:14px 1fr;gap:8px;padding:7px 0;border-top:1px dashed var(--line);font-size:13px}
+.ck i{width:9px;height:9px;border-radius:3px;margin-top:5px}.ck b{font-weight:600}.ck p{margin:1px 0 0;color:var(--muted)}.ck .fx{color:var(--ink)}
+.p{background:var(--pass)}.w{background:var(--warn)}.f{background:var(--fail)}.s0{background:#c9c5bb}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th{font:500 9.5px "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px}
+td{padding:8px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}
+pre{margin:8px 0 0;background:#0e1116;color:#dfe4ff;border-radius:10px;padding:12px;font:11px/1.55 "JetBrains Mono",monospace;white-space:pre-wrap;word-break:break-all}
+.chips span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 10px;margin:0 6px 6px 0;font-size:12.5px}
+.lockbox{border:1px dashed var(--aeo);background:rgba(35,64,217,.05)}
+.foot{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;gap:20px;flex-wrap:wrap}
+.guide{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.guide span{font:500 10px "JetBrains Mono",monospace;padding:3px 8px;border-radius:6px;color:#fff}
+@page{size:A4;margin:12mm}
+@media screen and (max-width:800px){.scores,.two,.areas{grid-template-columns:1fr}h1{font-size:44px}}
+@media print{body{background:var(--paper)}.wrap{padding:0;max-width:none}h2{margin-top:26px}h1{font-size:52px}
+.scores{grid-template-columns:repeat(4,1fr)}.two,.areas{grid-template-columns:1fr 1fr}.card{padding:14px;break-inside:auto}.ck,.prio li,tr{break-inside:avoid}.ck{font-size:12px;padding:5px 0}html{zoom:.86}}
 </style></head><body><div class="wrap">
-
 <div class="top">
-  <div>
-    <h1>WEBSITE<br>AUDIT</h1>
-    <div class="sub">REPORT</div>
-    <div class="eyebrow">Analyze · Improve · Grow</div>
-    <div class="meta"><a href="{{ r.url }}">{{ r.url }}</a> · {{ r.audited_at[:10] }} · {{ r.pages_crawled }} pages crawled<br>
-    PageSpeed {{ 'on' if r.meta.psi else 'off' }} · Browser rendering {{ 'on' if r.meta.browser else 'off' }} · AI {{ 'on' if r.meta.ai else 'off' }}</div>
-  </div>
-  <div class="panel health" style="background:#151515;color:#fff;border:0">
-    <svg width="170" height="170" viewBox="0 0 170 170">
-      <circle cx="85" cy="85" r="70" fill="none" stroke="#2a2925" stroke-width="16"/>
-      <circle cx="85" cy="85" r="70" fill="none" stroke="{{ r.band.color }}" stroke-width="16" stroke-linecap="round"
-        stroke-dasharray="{{ (r.overall_score/100*439.8)|round(1) }} 439.8" transform="rotate(-90 85 85)"/>
-      <text x="85" y="92" text-anchor="middle" font-size="50" font-weight="900" font-family="Inter,system-ui" fill="#fff">{{ r.overall_score }}</text>
-      <text x="85" y="116" text-anchor="middle" font-size="14" fill="#777" font-family="Inter,system-ui">/100</text>
-    </svg>
-    <div>
-      <div class="eyebrow">Overall health score</div>
-      <div style="margin:8px 0"><span class="band" style="background:{{ r.band.color }}22;color:{{ r.band.color }}">{{ r.band.label }}</span></div>
-      <div style="font-size:14px;color:#bdb8ae">{{ r.band.description }}</div>
-      {% if r.comparison %}<div style="margin-top:8px;font-size:14px" class="{{ 'up' if r.comparison.overall_delta >= 0 else 'down' }}">
-        {{ '%+d'|format(r.comparison.overall_delta) }} since {{ (r.comparison.previous_date or '')[:10] }}</div>{% endif %}
-      <div style="margin-top:10px;font-size:13px">❌ {{ r.action_plan.counts.critical }} critical · ⚠️ {{ r.action_plan.counts.warnings }} warnings · ✅ {{ r.action_plan.counts.passed }} passed</div>
-    </div>
-  </div>
+  <div class="brand">{% if b.logo %}<img src="{{ b.logo }}" alt="{{ b.name }}">{% else %}<span class="mk"></span>{% endif %}{{ b.name }}</div>
+  <div style="text-align:right"><div class="m">Website audit · {{ r.audited_at[:10] }}</div><div class="host">{{ pages_ok }} pages crawled</div></div>
 </div>
+<div class="m" style="margin-top:28px">SEO + AI search audit</div>
+<h1>{{ host }}</h1>
+<div class="host">{{ r.url }}</div>
 
-<div class="cols" style="margin-top:22px">
-  <div class="panel"><div class="eyebrow" style="margin-bottom:10px">Executive summary</div><div class="summary">{{ r.summary }}</div></div>
-  <div class="panel guide"><div class="eyebrow" style="margin-bottom:6px">Audit scoring guide</div>
-    {% for floor, label, desc, color in bands %}
-    <div><b style="background:{{ color }}" class="{{ 'on' if r.band.label == label }}">{{ floor }}–{{ 100 if floor == 90 else (29 if floor == 0 else floor + 19) }}</b><span><strong>{{ label }}</strong> — {{ desc }}</span></div>
-    {% endfor %}
-  </div>
+<div class="scores">
+  <div class="card"><div class="m">SEO health</div><div class="g">{{ ring(r.overall_score, col(r.overall_score)) }}<div><span class="band" style="background:{{ col(r.overall_score) }}22;color:{{ col(r.overall_score) }}">{{ r.band.label }}</span><div style="font-size:12.5px;color:var(--muted)">{{ r.band.description }}</div></div></div></div>
+  <div class="card {{ 'lockbox' if A and A.locked }}"><div class="m">AI search readiness</div>{% if A and not A.error %}<div class="g">{{ ring(A.score, '#2340d9') }}<div><span class="band" style="background:rgba(35,64,217,.1);color:#2340d9">{{ A.band.label }}</span><div style="font-size:12.5px;color:var(--muted)">{{ 'Full AEO detail is in the Pro report.' if A.locked else 'Ready to be found and cited by AI assistants.' }}</div></div></div>{% else %}<p>Not run.</p>{% endif %}</div>
+  <div class="card"><div class="m">Issues</div><div class="n3"><div><b style="color:var(--fail)">{{ r.action_plan.counts.critical }}</b><span>critical</span></div><div><b style="color:var(--warn)">{{ r.action_plan.counts.warnings }}</b><span>warnings</span></div><div><b style="color:var(--pass)">{{ r.action_plan.counts.passed }}</b><span>passed</span></div></div></div>
+  <div class="card dark"><div class="m">AI crawlers</div>{% if A and A.bots %}{% set sb = A.bots|selectattr('role','equalto','search')|list %}<div class="n3"><div><b>{{ sb|rejectattr('robots','equalto','blocked')|list|length }}/{{ sb|length }}</b><span style="color:#a9aeb7">search bots allowed</span></div></div>
+    <div style="font-size:12.5px;margin-top:8px;color:#a9aeb7">{{ (A.bots|selectattr('live','equalto','blocked')|list|length) ~ ' blocked by firewall' if A.bots|selectattr('live','equalto','blocked')|list else 'No firewall blocks detected' }}</div>{% else %}<p>—</p>{% endif %}</div>
 </div>
+<div class="guide">{% for floor, label, desc, color in bands %}<span style="background:{{ color }}">{{ floor }}+ {{ label }}</span>{% endfor %}</div>
 
-{% if r.meta.screenshots %}
-<h2>How visitors see it</h2>
-<div class="panel shots">
-  {% if r.meta.screenshots.desktop %}<img src="{{ r.meta.screenshots.desktop }}" alt="Desktop first screen" style="width:68%">{% endif %}
-  {% if r.meta.screenshots.mobile %}<img src="{{ r.meta.screenshots.mobile }}" alt="Mobile first screen" style="width:24%">{% endif %}
-</div>{% endif %}
+<h2>Summary</h2>
+<div class="two"><div class="card"><p class="summary">{{ r.summary }}</p></div>
+<div class="card"><div class="m">Fix first</div><ol class="prio">{% for it in fixfirst %}<li><div><b>{{ it.check }}</b> <span class="tag">{{ it.area }}</span><span class="tag">{{ it.impact }} impact</span><p>{{ it.detail }}</p><p class="fx">→ {{ it.fix }}</p></div></li>{% endfor %}</ol></div></div>
 
-<h2>The 10 core areas</h2>
-<div class="grid">
-{% for a in r.areas %}{% set i = loop.index0 %}
-  <div class="card">
-    <div class="num" style="background:{{ colors[i] }}">{{ a.number }}</div>
-    <div class="ic" style="background:{{ tints[i] }}"><svg viewBox="0 0 24 24">{{ icons[i]|safe }}</svg></div>
-    <h3>{{ a.name }}</h3>
-    <div class="score" style="color:{{ band(a.score).color }}">{{ a.score }}<small>/100</small>
-      {% if r.comparison and r.comparison.areas[a.key] and r.comparison.areas[a.key].delta %}<small class="{{ 'up' if r.comparison.areas[a.key].delta > 0 else 'down' }}">{{ '%+d'|format(r.comparison.areas[a.key].delta) }}</small>{% endif %}</div>
-    <ul class="checks">
-    {% for c in a.checks %}<li><details><summary><span class="dot {{ c.status }}">{{ {'pass':'✓','warn':'!','fail':'✕','info':'i','skip':'–'}[c.status] }}</span><span>{{ c.label }}</span></summary>
-      <div class="det">{{ c.detail }}{% if c.fix and c.status in ('warn','fail') %}<div class="fix"><b>Fix:</b> {{ c.fix }}</div>{% endif %}
-      {% for p in c.pages[:6] %}<code>{{ p }}</code>{% endfor %}</div></details></li>{% endfor %}
-    </ul>
-    <div class="km"><div><span style="color:{{ colors[i] }}">Key metric</span><br><b>{{ a.key_metric_label }}</b></div><strong>{{ a.key_metric_value }}</strong></div>
-  </div>
-{% endfor %}
+<h2 class="pb">SEO audit · 10 areas</h2>
+<div class="areas">{% for a in r.areas %}{{ area(a, false) }}{% endfor %}</div>
+
+{% if A and not A.error %}
+<h2 class="pb">AI search (AEO) audit</h2>
+{% if A.locked %}
+<div class="card lockbox"><h3>AI search readiness: {{ A.score }}/100 · {{ A.issues_hidden }} issues found</h3><p style="color:var(--muted)">The Pro report explains each AI-search issue, how to fix it, includes ready-to-paste llms.txt and schema markup, and tests whether AI answer engines cite this site today.</p>
+<table><tr><th>Area</th><th>Score</th></tr>{% for a in A.areas %}<tr><td>{{ a.name }}</td><td>{{ a.score }}/100</td></tr>{% endfor %}</table></div>
+{% else %}
+{% if A.ai and A.ai.ai_description %}<div class="two"><div class="card"><div class="m">How an AI assistant would describe {{ A.brand }}</div><p class="summary">{{ A.ai.ai_description }}</p></div>
+<div class="card"><div class="m">Facts AI can't find</div><ol class="prio">{% for m in A.ai.missing or [] %}<li><div>{{ m }}</div></li>{% else %}<li><div>Nothing important missing.</div></li>{% endfor %}</ol></div></div>{% endif %}
+<div class="card" style="margin-top:12px"><div class="m">AI crawler access</div><table><tr><th>Crawler</th><th>Company</th><th>Role</th><th>Powers</th><th>robots.txt</th><th>Live</th></tr>
+{% for b in A.bots %}<tr><td><b>{{ b.bot }}</b></td><td>{{ b.company }}</td><td>{{ b.role_label }}</td><td>{{ b.engine }}</td><td style="color:{{ 'var(--fail)' if b.robots=='blocked' else 'var(--pass)' }}">{{ b.robots }}</td><td>{{ b.live or '—' }}</td></tr>{% endfor %}</table></div>
+{% if A.visibility and A.visibility.status == 'done' %}{% set v = A.visibility %}
+<div class="card" style="margin-top:12px"><div class="m">AI answer visibility · {{ v.engines|join(' & ') }}</div><h3 style="margin:6px 0">Share of voice: {{ v.share_of_voice }}% ({{ v.cited }} citations, {{ v.mentioned }} mentions in {{ v.total }} answers)</h3>
+<table><tr><th>Question</th><th>Engine</th><th>Result</th></tr>{% for x in v.results if not x.error %}<tr><td>{{ x.question }}</td><td>{{ x.engine }}</td><td>{{ 'cited' if x.cited else 'mentioned' if x.mentioned else 'absent' }}</td></tr>{% endfor %}</table>
+{% if v.competitors %}<p style="margin:10px 0 0;color:var(--muted)">Cited instead: {{ v.competitors|map(attribute='domain')|join(', ') }}</p>{% endif %}</div>{% endif %}
+<div class="areas" style="margin-top:12px">{% for a in A.areas %}{{ area(a, true) }}{% endfor %}</div>
+<h2 class="pb">Ready-to-paste fixes</h2>
+{% for k, f in (A.fixes or {}).items() %}<div class="card" style="margin-bottom:10px"><h3>{{ f.title }} <span class="tag">{{ f.file }}</span></h3><p style="color:var(--muted);margin:6px 0 0">{{ f.how }}</p><pre>{{ f.code }}</pre></div>{% endfor %}
+{% endif %}{% endif %}
+
+<h2 class="pb">Pages</h2>
+<div class="card"><table><tr><th>Page</th><th>Status</th><th>Title len</th><th>Desc len</th><th>Words</th><th>H1</th><th>Load</th></tr>
+{% for p in r.meta.pages[:30] %}<tr><td>{{ p.url }}</td><td>{{ p.status }}</td><td>{{ p.title_len if p.title_len is defined else '—' }}</td><td>{{ p.desc_len if p.desc_len is defined else '—' }}</td><td>{{ p.words }}</td><td>{{ p.h1 if p.h1 is defined else '—' }}</td><td>{{ p.ms }}ms</td></tr>{% endfor %}</table></div>
+{% if r.tech %}<h2>Technology</h2><div class="card chips">{% for t in r.tech %}<span>{{ t.name }} <span class="m" style="font-size:9px">{{ t.category }}</span></span>{% endfor %}</div>{% endif %}
+{% if show_email and r.outreach_email %}<h2>Outreach email</h2><div class="card"><p class="summary">{{ r.outreach_email }}</p></div>{% endif %}
+
+<div class="foot"><div>{{ b.name }}{% if b.contact %} · {{ b.contact }}{% endif %}</div><div>{{ b.credit }}</div></div>
 </div>
+{% if print_mode %}<script>(function(){function go(){setTimeout(function(){window.print()},700)}if(document.readyState==='complete')go();else addEventListener('load',go)})();</script>{% endif %}
+</body></html>"""
 
-<h2>Audit action plan</h2>
-<div class="panel">
-  <div class="step"><div class="n">1</div><div><h4>Prioritize</h4><div style="font-size:13px;color:#555">Critical issues first — high impact, easy to fix.</div>
-    <ol>{% for it in r.action_plan.prioritize %}<li><b>{{ it.check }}</b> <span class="tag">{{ it.area }}</span><span class="tag">{{ it.impact }} impact</span><span class="tag">{{ it.effort }}</span><br>{{ it.detail }}<br><i>→ {{ it.fix }}</i></li>{% endfor %}</ol></div></div>
-  <div class="step"><div class="n">2</div><div style="flex:1"><h4>Fix & optimize</h4><div style="font-size:13px;color:#555">Every open issue, grouped by area.</div>
-    {% for area, items in r.action_plan.fix_and_optimize.items() %}<div style="margin-top:10px;font-size:13px"><b>{{ area }}</b><ul>
-    {% for it in items %}<li><span class="dot {{ it.status }}" style="display:inline-grid;vertical-align:-3px">{{ '✕' if it.status == 'fail' else '!' }}</span> {{ it.check }} — {{ it.fix }}</li>{% endfor %}</ul></div>{% endfor %}</div></div>
-  <div class="step"><div class="n">3</div><div style="flex:1"><h4>Test & monitor</h4><div style="font-size:13px;color:#555">Track these key metrics after each change.</div>
-    <table><tr><th>Area</th><th>Metric</th><th>Baseline</th></tr>{% for m in r.action_plan.test_and_monitor %}<tr><td>{{ m.area }}</td><td>{{ m.metric }}</td><td><b>{{ m.baseline }}</b></td></tr>{% endfor %}</table></div></div>
-  <div class="step"><div class="n">4</div><div><h4>Re-audit regularly</h4><div style="font-size:13px">Recommended cadence: <b>{{ r.action_plan.re_audit.cadence }}</b>. {{ r.action_plan.re_audit.note }}</div></div></div>
-</div>
-
-<h2>Quick wins to check first</h2>
-<div class="wins">{% for w in r.quick_wins %}<div class="win"><b>{{ w.title }}</b>
-  {% if w.status == 'done' %}<span class="done">✓ Looks good</span>{% else %}<ul>{% for x in w['items'] %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}</div>{% endfor %}</div>
-
-{% if show_email %}<h2>Outreach email draft</h2><div class="panel"><pre>{{ r.outreach_email }}</pre></div>{% endif %}
-
-<div class="foot"><div><b>KEY TAKEAWAY</b></div><div>A regular website audit helps you find issues, improve user experience, boost SEO and drive better results. <b>Audit. Optimize. Grow.</b></div><div>{{ brand }}</div></div>
-</div>
-<script>
-function openAll(){document.querySelectorAll('details').forEach(function(d){d.open=true})}
-addEventListener('beforeprint',openAll);
-{% if print_mode %}(function(){function go(){openAll();setTimeout(function(){window.print()},600)}
-if(document.readyState==='complete')go();else addEventListener('load',go)})();{% endif %}
-</script></body></html>"""
+AREA = r"""<div class="card"><div class="ah"><h3>{{ a.number }} · {{ a.name }}</h3><span class="s" style="color:{{ '#2340d9' if aeo else col(a.score) }}">{{ a.score }}</span></div>
+<div class="bar"><i style="width:{{ a.score }}%;background:{{ '#2340d9' if aeo else col(a.score) }}"></i></div><div class="m">{{ a.key_metric_label }}: {{ a.key_metric_value }}</div>
+{% for c in a.checks %}<div class="ck"><i class="{{ {'pass':'p','warn':'w','fail':'f'}.get(c.status,'s0') }}"></i><div><b>{{ c.label }}</b>{% if c.detail %}<p>{{ c.detail }}</p>{% endif %}{% if c.fix and c.status in ('warn','fail') %}<p class="fx">→ {{ c.fix }}</p>{% endif %}</div></div>{% endfor %}</div>"""
 
 
-def to_html(report: dict, brand: str = "brightajiboye.com", show_email: bool = False, print_mode: bool = False) -> str:
-    from .scoring import band
+def _col(s):
+    return "#1f9d5c" if s >= 90 else "#6aa83a" if s >= 70 else "#c98a12" if s >= 50 else "#d9732b" if s >= 30 else "#d23f3f"
+
+
+def _ring(s, color):
+    from markupsafe import Markup
+    C = 2 * 3.14159 * 38
+    v = max(0, min(100, s or 0))
+    return Markup(f'<svg width="92" height="92" viewBox="0 0 92 92"><circle cx="46" cy="46" r="38" fill="none" stroke="rgba(14,17,22,.08)" stroke-width="8"/>'
+                  f'<circle cx="46" cy="46" r="38" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="{C * v / 100:.1f} {C:.1f}" transform="rotate(-90 46 46)"/>'
+                  f'<text x="46" y="54" text-anchor="middle" font-family="Funnel Display,sans-serif" font-size="26" fill="#0e1116">{v}</text></svg>')
+
+
+def to_html(report: dict, brand: str = "brightajiboye.com", show_email: bool = False, print_mode: bool = False, branding: dict | None = None) -> str:
+    from urllib.parse import urlparse
     env = Environment(loader=BaseLoader(), autoescape=True)
-    tpl = env.from_string(TEMPLATE)
-    return tpl.render(r=report, colors=COLORS, tints=TINTS, icons=ICONS, bands=BANDS, band=band,
-                      brand=brand, show_email=show_email, print_mode=print_mode)
+    env.globals.update(col=_col, ring=_ring)
+    area_t = env.from_string(AREA)
+    from markupsafe import Markup
+    env.globals["area"] = lambda a, aeo: Markup(area_t.render(a=a, aeo=aeo))
+    b = branding or {}
+    bb = {"name": b.get("name") or "AuditPilot", "logo": b.get("logo") or "", "contact": b.get("contact") or "",
+          "credit": "" if b.get("name") else f"Audit by AuditPilot · {brand}"}
+    accent = b.get("color") if b.get("color", "").startswith("#") and len(b.get("color", "")) in (4, 7) else "#2340d9"
+    A = report.get("aeo")
+    fix = list(report["action_plan"]["prioritize"])
+    if A and not A.get("error") and not A.get("locked"):
+        aeo_fix = [{"check": c["label"], "area": a["name"], "impact": c["impact"], "detail": c["detail"], "fix": c["fix"]}
+                   for a in A["areas"] for c in a["checks"] if c["status"] == "fail" and c["impact"] == "high"][:3]
+        fix = aeo_fix + fix
+    host = (urlparse(report["url"]).hostname or report["url"]).removeprefix("www.")
+    return env.from_string(TEMPLATE).render(r=report, A=A, b=bb, accent=accent, bands=BANDS, host=host, fixfirst=fix[:8],
+                                            pages_ok=sum(1 for p in report["meta"]["pages"] if p["status"] == 200),
+                                            show_email=show_email, print_mode=print_mode)
 
 
-async def to_pdf(report: dict, brand: str = "brightajiboye.com") -> bytes:
+async def to_pdf(report: dict, brand: str = "brightajiboye.com", branding: dict | None = None) -> bytes:
     """Real PDF via headless Chromium (needs Playwright; not available on Vercel)."""
     from playwright.async_api import async_playwright
-    html = to_html(report, brand=brand).replace("addEventListener('beforeprint',openAll);", "openAll();")
+    html = to_html(report, brand=brand, branding=branding)
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         page = await browser.new_page()
         await page.set_content(html, wait_until="networkidle", timeout=30000)
-        await page.evaluate("document.querySelectorAll('details').forEach(d => d.open = true)")
         await page.emulate_media(media="print")
         pdf = await page.pdf(format="A4", print_background=True, margin={"top": "10mm", "bottom": "10mm", "left": "10mm", "right": "10mm"})
         await browser.close()

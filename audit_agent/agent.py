@@ -6,7 +6,8 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from . import ai, browser, psi, planner, scoring
+from . import ai, browser, psi, planner, scoring, techstack
+from . import aeo as aeo_mod
 from .checks import AREAS
 from .checks._util import main_text
 from .crawler import Crawler
@@ -15,14 +16,14 @@ from .models import AuditReport
 
 async def run_audit(url: str, max_pages: int = 25, use_psi: bool = True, use_browser: bool = True,
                     use_ai: bool = True, compare_path: Optional[str] = None, sender: str = "Bright",
-                    log=print) -> dict:
+                    aeo: bool = True, log=print) -> dict:
     crawler = Crawler(url, max_pages=max_pages)
     start = crawler.site.start_url
     log(f"→ Auditing {start}")
 
     psi_task = asyncio.create_task(psi.run_all(start, use_psi))
     log("  crawling pages, robots, sitemap, links, SSL, headers…")
-    site = await crawler.run()
+    site = await crawler.run(aeo=aeo)
     final = site.home.final_url if site.home else start
     log(f"  {len(site.pages)} pages crawled, {len(site.link_status)} links checked")
 
@@ -40,6 +41,13 @@ async def run_audit(url: str, max_pages: int = 25, use_psi: bool = True, use_bro
         site.ai["content"] = await ai.evaluate_content(final, s.title.string if s.title else "",
                                                        s.find("h1").get_text(" ", strip=True) if s.find("h1") else "",
                                                        main_text(site.home))
+
+    if aeo and use_ai and ai.enabled() and site.home and site.home.soup:
+        log("  AI reading the site like an answer engine…")
+        s = site.home.soup
+        site.ai["aeo"] = await ai.evaluate_aeo(final, s.title.string if s.title else "",
+                                               s.find("h1").get_text(" ", strip=True) if s.find("h1") else "",
+                                               main_text(site.home))
 
     areas = []
     for mod in AREAS:
@@ -61,8 +69,17 @@ async def run_audit(url: str, max_pages: int = 25, use_psi: bool = True, use_bro
         meta={"psi": bool(site.psi.get("mobile")), "browser": "mobile" in site.browser, "ai": bool(site.ai.get("content")),
               "ai_content": site.ai.get("content", {}), "errors": site.errors[:20],
               "screenshots": {k: v.get("screenshot") for k, v in site.browser.items() if isinstance(v, dict) and v.get("screenshot")},
-              "pages": [{"url": p.url, "status": p.status, "words": p.word_count} for p in site.pages]},
+              "pages": [page_row(p) for p in site.pages],
+              "crawl": {"robots": bool(site.robots_txt), "sitemap": site.sitemap_url, "sitemap_urls": len(site.sitemap_urls),
+                        "links_checked": len(site.link_status), "llms_txt": site.llms_txt.get("llms.txt", {}).get("found", False)}},
     ).to_dict()
+    report["tech"] = techstack.detect(site)
+    report["seo_score"] = score
+    if aeo:
+        try:
+            report["aeo"] = aeo_mod.run(site)
+        except Exception as e:
+            report["aeo"] = {"error": f"{type(e).__name__}: {e}"}
 
     if compare_path:
         with open(compare_path) as f:
@@ -73,3 +90,17 @@ async def run_audit(url: str, max_pages: int = 25, use_psi: bool = True, use_bro
     report["outreach_email"] = await ai.outreach_email(report, sender) if use_ai else ai._fallback_email(report, sender)
     log(f"✓ Overall health score: {score}/100 ({report['band']['label']})")
     return report
+
+
+def page_row(p) -> dict:
+    row = {"url": p.url, "status": p.status, "words": p.word_count, "ms": p.total_ms, "kb": round(p.size_bytes / 1024)}
+    if p.soup:
+        t = p.soup.title.string.strip() if p.soup.title and p.soup.title.string else ""
+        d = p.soup.find("meta", attrs={"name": "description"})
+        dtxt = (d.get("content") or "").strip() if d else ""
+        row.update({"title": t[:120], "title_len": len(t), "desc_len": len(dtxt), "desc": dtxt[:200],
+                    "h1": len(p.soup.find_all("h1")), "imgs": len(p.soup.find_all("img")),
+                    "noalt": len([i for i in p.soup.find_all("img") if not i.has_attr("alt")]),
+                    "schema": len(p.soup.find_all("script", type="application/ld+json")),
+                    "canonical": bool(p.soup.find("link", rel=lambda v: v and "canonical" in v))})
+    return row

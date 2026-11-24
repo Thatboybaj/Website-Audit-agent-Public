@@ -53,5 +53,25 @@ def to_markdown(r: dict) -> str:
         for c in a["checks"]:
             out.append(f"- {ICON.get(c['status'], '')} **{c['label']}** — {c['detail']}")
         out.append("")
-    out += ["## Outreach email draft", "", "```", r["outreach_email"], "```", ""]
+    A = r.get("aeo")
+    if A and not A.get("error"):
+        out += [f"## AI search readiness (AEO): {A['score']}/100 — {A['band']['label']}", ""]
+        if A.get("locked"):
+            out += [f"_{A.get('issues_hidden', 0)} AI-search issues found — full detail and fixes are in the Pro report._", ""]
+        out += ["| Crawler | Role | robots.txt | Live |", "|---|---|---|---|"]
+        out += [f"| {b['bot']} | {b.get('role_label', b['role'])} | {b['robots']} | {b.get('live') or '—'} |" for b in A.get("bots", [])]
+        out.append("")
+        for a in A["areas"]:
+            out.append(f"### {a['number']}. {a['name']} — {a['score']}/100")
+            for c in a["checks"]:
+                out.append(f"- {ICON.get(c['status'], '')} **{c['label']}**" + (f" — {c['detail']}" if c.get("detail") else "") + (f"  \n  → {c['fix']}" if c.get("fix") and c["status"] in ("warn", "fail") else ""))
+            out.append("")
+        if A.get("visibility") and A["visibility"].get("status") == "done":
+            v = A["visibility"]
+            out += [f"### AI answer visibility: {v['share_of_voice']}% share of voice ({v['cited']} citations, {v['mentioned']} mentions / {v['total']} answers)", ""]
+        for k, f in (A.get("fixes") or {}).items():
+            if f.get("code"):
+                out += [f"### Fix: {f['title']} ({f['file']})", "", f["how"], "", "```", f["code"].rstrip(), "```", ""]
+    if r.get("outreach_email"):
+        out += ["## Outreach email draft", "", "```", r["outreach_email"], "```", ""]
     return "\n".join(out)

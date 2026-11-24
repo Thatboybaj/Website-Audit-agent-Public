@@ -72,6 +72,9 @@ class SiteData:
     psi: dict = field(default_factory=dict)                  # strategy -> parsed PSI
     browser: dict = field(default_factory=dict)              # viewport -> rendered metrics
     ai: dict = field(default_factory=dict)                   # AI evaluations
+    extras: dict = field(default_factory=dict)               # soft404, host variant, favicon, security.txt
+    llms_txt: dict = field(default_factory=dict)             # {"llms.txt": {...}, "llms-full.txt": {...}}
+    bot_access: dict = field(default_factory=dict)           # bot name -> {status, words, blocked}
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -329,12 +332,72 @@ class Crawler:
         tasks = [get_asset(u, "css") for u in css] + [get_asset(u, "js") for u in js] + [get_asset(u, "img") for u in imgs]
         self.site.assets = list(await asyncio.gather(*tasks))
 
-    async def run(self) -> SiteData:
+    async def check_extras(self) -> None:
+        """Soft-404 handling, www/non-www consolidation, favicon, security.txt, llms.txt."""
+        import secrets
+        ex = self.site.extras
+        missing = urljoin(self.site.origin, f"/auditpilot-check-{secrets.token_hex(4)}")
+        s, t, h = await self.get_text(missing, limit=5000)
+        ex["soft404"] = {"url": missing, "status": s, "html": "html" in h.get("content-type", "")}
+        # host variant
+        host = urlparse(self.site.origin).hostname or ""
+        alt = host[4:] if host.startswith("www.") else "www." + host
+        if not re.match(r"^[\d.]+$|^localhost$|^\[", host):
+            scheme = urlparse(self.site.origin).scheme
+            try:
+                async with httpx.AsyncClient(follow_redirects=True, timeout=10, headers={"User-Agent": UA}) as c:
+                    r = await c.get(f"{scheme}://{alt}/")
+                    ex["host_variant"] = {"alt": alt, "status": r.status_code,
+                                          "final_host": urlparse(str(r.url)).hostname, "redirects": len(r.history)}
+            except Exception as e:
+                ex["host_variant"] = {"alt": alt, "error": type(e).__name__}
+        # favicon / security.txt
+        home = self.site.home
+        icon = None
+        if home and home.soup:
+            l = home.soup.find("link", rel=lambda v: v and any("icon" in x.lower() for x in (v if isinstance(v, list) else [v])))
+            icon = urljoin(home.final_url, l["href"]) if l and l.get("href") else None
+            m = home.soup.find("link", rel=lambda v: v and "manifest" in v)
+            ex["manifest"] = bool(m)
+        icon = icon or urljoin(self.site.origin, "/favicon.ico")
+        ex["favicon"] = {"url": icon, "status": await self.head_status(icon)}
+        s, t, h = await self.get_text(urljoin(self.site.origin, "/.well-known/security.txt"), limit=5000)
+        ex["security_txt"] = s == 200 and "contact:" in t.lower()
+        # llms.txt (emerging standard)
+        for name in ("llms.txt", "llms-full.txt"):
+            s, t, h = await self.get_text(urljoin(self.site.origin, "/" + name), limit=300_000)
+            ok = s == 200 and "<html" not in t[:300].lower() and len(t.strip()) > 20
+            self.site.llms_txt[name] = {"status": s, "found": ok, "text": t[:20000] if ok else "", "size": len(t) if ok else 0}
+
+    async def check_bot_access(self) -> None:
+        """Fetch the homepage as each AI crawler: firewalls/CDNs often block them even when robots.txt allows."""
+        from .aeo.bots import BOTS
+        url = self.site.start_url
+        base_words = (self.site.home.word_count if self.site.home else 0) or 1
+
+        async def probe(bot):
+            try:
+                async with self.sem:
+                    async with httpx.AsyncClient(follow_redirects=True, timeout=12, headers={"User-Agent": bot["ua"], "Accept": "text/html"}) as c:
+                        r = await c.get(url)
+                challenge = bool(re.search(r"cf-chl|challenge-platform|captcha|Just a moment|Attention Required|Access denied", r.text[:20000], re.I))
+                words = len(re.findall(r"[A-Za-z]{2,}", BeautifulSoup(r.text, "lxml").get_text(" ")[:200000])) if "html" in r.headers.get("content-type", "") else 0
+                blocked = r.status_code in (401, 403, 406, 429, 503) or challenge or (r.status_code == 200 and words < base_words * 0.3 and base_words > 80)
+                return bot["name"], {"status": r.status_code, "words": words, "blocked": blocked, "challenge": challenge}
+            except Exception as e:
+                return bot["name"], {"status": 0, "words": 0, "blocked": True, "error": type(e).__name__}
+        for name, res in await asyncio.gather(*(probe(b) for b in BOTS if b.get("probe"))):
+            self.site.bot_access[name] = res
+
+    async def run(self, aeo: bool = True) -> SiteData:
         try:
             await self.load_robots_and_sitemap()
             await self.crawl_pages()
-            await asyncio.gather(self.check_links(), self.check_https_redirect(), self.check_ssl(),
-                                 self.check_exposed_paths(), self.collect_assets())
+            jobs = [self.check_links(), self.check_https_redirect(), self.check_ssl(),
+                    self.check_exposed_paths(), self.collect_assets(), self.check_extras()]
+            if aeo:
+                jobs.append(self.check_bot_access())
+            await asyncio.gather(*jobs)
         finally:
             await self.client.aclose()
         return self.site

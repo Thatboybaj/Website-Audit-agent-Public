@@ -100,5 +100,18 @@ def run(site: SiteData) -> AreaResult:
                             "Add og:title/description/image for share previews and Organization/LocalBusiness JSON-LD schema.",
                             "low", "easy"))
 
+    # hreflang (multilingual sites)
+    hl_pages = [p for p in pages if p.soup.find("link", rel="alternate", hreflang=True)]
+    if hl_pages:
+        bad = []
+        for p in hl_pages:
+            langs = [l.get("hreflang", "").lower() for l in p.soup.find_all("link", rel="alternate", hreflang=True)]
+            hrefs = [l.get("href", "") for l in p.soup.find_all("link", rel="alternate", hreflang=True)]
+            if "x-default" not in langs or not any(h.rstrip("/") == p.final_url.rstrip("/") or h.rstrip("/").endswith(short(p.url, site).rstrip("/") or "/") for h in hrefs):
+                bad.append(short(p.url, site))
+        checks.append(Check("hreflang", "Hreflang (languages)", "pass" if not bad else "warn",
+                            f"{len(hl_pages)} page(s) declare language versions; {len(bad)} missing x-default or a self-reference.",
+                            "Each language page should list all versions, itself, and an x-default.", "low", "medium", pages=bad[:6]))
+
     pct = round(100 * optimized / n) if pages else 0
     return AreaResult(4, "onpage_seo", "On-Page SEO", checks, "Optimized Pages", f"{pct}%", weight=12)

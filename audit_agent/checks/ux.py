@@ -115,6 +115,13 @@ def run(site: SiteData) -> AreaResult:
                         "Delay popups (scroll/exit intent), avoid autoplay sound, keep internal links in the same tab.",
                         "medium", "easy"))
 
+    imgs = [a for a in site.assets if a.kind == "img"]
+    broken_imgs = [a.url for a in imgs if a.status >= 400 or a.status == 0]
+    if imgs:
+        checks.append(Check("broken_images", "Broken Images", "pass" if not broken_imgs else "fail",
+                            f"{len(broken_imgs)}/{len(imgs)} homepage images fail to load.",
+                            "Re-upload or remove broken images.", "medium", "easy", pages=broken_imgs[:6]))
+
     area = AreaResult(5, "ux", "User Experience", checks, "Bounce Risk", weight=8)
     area.compute_score()
     area.key_metric_value = "Low" if area.score >= 80 else "Medium" if area.score >= 55 else "High"

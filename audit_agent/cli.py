@@ -31,9 +31,24 @@ def slug(url: str) -> str:
 
 
 async def audit_one(url: str, a) -> dict:
-    report = await run_audit(url, max_pages=a.pages, use_psi=not a.no_psi, use_browser=not a.no_browser,
+    report = await run_audit(url, max_pages=a.pages, use_psi=not a.no_psi, use_browser=not a.no_browser, aeo=not a.no_aeo,
                              use_ai=not a.no_ai, compare_path=a.compare, sender=a.sender,
                              log=(lambda *_: None) if a.quiet else print)
+    if a.visibility and report.get("aeo") and not report["aeo"].get("error"):
+        from .aeo import visibility
+        qs = [l.strip() for l in open(a.questions)] if a.questions else (report["aeo"]["ai"].get("buyer_questions") or [])
+        if qs:
+            print(f"  asking AI engines {len(qs)} buyer questions…")
+            report["aeo"]["visibility"] = await visibility.run(report["url"], report["aeo"]["brand"], qs)
+            v = report["aeo"]["visibility"]
+            if v.get("status") == "done":
+                print(f"  AI share of voice: {v['share_of_voice']}% ({v['cited']} citations / {v['total']} answers)")
+            else:
+                print("  visibility:", v.get("message") or v.get("errors"))
+        else:
+            print("  visibility: no buyer questions (enable AI or pass --questions file.txt)")
+    if report.get("aeo") and not report["aeo"].get("error"):
+        print(f"  AI search readiness: {report['aeo']['score']}/100 ({report['aeo']['band']['label']})")
     os.makedirs(a.out, exist_ok=True)
     base = os.path.join(a.out, f"{slug(url)}-{report['audited_at'][:10]}")
     formats = [f.strip() for f in a.format.split(",")]
@@ -62,6 +77,9 @@ def main() -> None:
     p.add_argument("--no-psi", action="store_true", help="Skip Google PageSpeed Insights")
     p.add_argument("--no-browser", action="store_true", help="Skip headless-browser rendering")
     p.add_argument("--no-ai", action="store_true", help="Skip Claude (summary/content/email use templates)")
+    p.add_argument("--no-aeo", action="store_true", help="Skip the AI search (AEO) audit")
+    p.add_argument("--visibility", action="store_true", help="Test if AI answer engines cite the site (needs ANTHROPIC_API_KEY and/or PERPLEXITY_API_KEY)")
+    p.add_argument("--questions", help="Text file of buyer questions for --visibility (one per line)")
     p.add_argument("--sender", default=os.getenv("AUDIT_SENDER", "Bright"), help="Name used in the outreach email")
     p.add_argument("--brand", default=os.getenv("AUDIT_BRAND", "brightajiboye.com"), help="Footer brand on HTML report")
     p.add_argument("--show-email", action="store_true", help="Include the outreach email in the HTML report")

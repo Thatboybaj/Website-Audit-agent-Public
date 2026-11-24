@@ -1,2 +1,8 @@
 User-agent: *
 Disallow: /private/
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /

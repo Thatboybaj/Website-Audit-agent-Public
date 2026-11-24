@@ -57,7 +57,8 @@ MEASURE_JS = r"""
     textElements: textEls, tinyText: tiny, minFont: minFont === 99 ? null : minFont, fontFamilies: [...fonts].slice(0, 10),
     lowContrast, contrastSamples, ctaCount: ctas.length, ctaAboveFold: aboveFold.length,
     ctaAboveFoldText: aboveFold.slice(0, 3).map(e => (e.innerText || e.value || '').trim().slice(0, 40)),
-    overlay, navToggle };
+    overlay, navToggle,
+    renderedWords: ((document.body && document.body.innerText) || '').split(/\s+/).filter(w => /[A-Za-z]{2,}/.test(w)).length };
 }
 """
 

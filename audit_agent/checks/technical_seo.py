@@ -1,4 +1,7 @@
 """1. Technical SEO — crawlability, sitemap, robots, canonicals, noindex, 404s."""
+import json
+from urllib.parse import urlparse
+
 from ..crawler import SiteData, UA, same_site
 from ..models import AreaResult, Check
 from ._util import sample, short
@@ -103,5 +106,58 @@ def run(site: SiteData) -> AreaResult:
     checks.append(Check("redirect_chains", "Redirect Chains", "warn" if chains else "pass",
                         f"{len(chains)} page(s) redirect through multiple hops." if chains else "No multi-hop redirect chains.",
                         "Point links directly at the final URL; collapse chains into a single 301.", "low", "easy", pages=chains[:6]))
+
+    # Soft 404 handling
+    sf = site.extras.get("soft404", {})
+    if sf:
+        st = sf.get("status", 0)
+        if st in (404, 410):
+            checks.append(Check("soft_404", "404 Page Handling", "pass", f"Unknown URLs return a real {st}."))
+        elif st == 200:
+            checks.append(Check("soft_404", "404 Page Handling", "fail",
+                                "Non-existent URLs return 200 OK (a 'soft 404'), so search engines may index junk pages.",
+                                "Make your 404 page return HTTP status 404 (most hosts have a setting).", "medium", "easy",
+                                pages=[short(sf.get("url", ""), site)]))
+        elif st in (301, 302) or st == 0:
+            checks.append(Check("soft_404", "404 Page Handling", "warn", f"Unknown URLs respond with {st or 'no response'} instead of 404.",
+                                "Serve a helpful 404 page with status 404 instead of redirecting everything home.", "low", "easy"))
+
+    # www / non-www consolidation
+    hv = site.extras.get("host_variant")
+    if hv:
+        if hv.get("error"):
+            checks.append(Check("host_canonical", "www / non-www", "pass" if "www" in hv["alt"] else "info",
+                                f"{hv['alt']} does not resolve, so there is no duplicate host."))
+        elif hv.get("final_host") == urlparse(site.origin).hostname:
+            checks.append(Check("host_canonical", "www / non-www", "pass", f"{hv['alt']} redirects to your main host."))
+        else:
+            checks.append(Check("host_canonical", "www / non-www", "warn",
+                                f"{hv['alt']} serves its own copy (status {hv.get('status')}) instead of redirecting.",
+                                "301-redirect the www/non-www variant to one main host to avoid duplicate content.", "medium", "easy"))
+
+    # Structured data validity
+    blocks, broken = 0, []
+    for p in pages:
+        for sc in p.soup.find_all("script", type="application/ld+json"):
+            blocks += 1
+            try:
+                json.loads(sc.string or sc.get_text() or "")
+            except Exception:
+                broken.append(short(p.url, site))
+    if blocks:
+        checks.append(Check("schema_valid", "Structured Data", "fail" if broken else "pass",
+                            f"{blocks} JSON-LD block(s), {len(broken)} with invalid JSON." if broken else f"{blocks} JSON-LD block(s), all valid JSON.",
+                            "Fix the JSON syntax (validate at validator.schema.org).", "medium", "easy", pages=list(dict.fromkeys(broken))[:6]))
+    else:
+        checks.append(Check("schema_valid", "Structured Data", "warn", "No JSON-LD structured data found.",
+                            "Add Organization + WebSite schema at minimum (AuditPilot Pro generates it for you).", "medium", "easy"))
+
+    # Favicon
+    fv = site.extras.get("favicon", {})
+    if fv:
+        ok = 200 <= (fv.get("status") or 0) < 400
+        checks.append(Check("favicon", "Favicon", "pass" if ok else "warn",
+                            "Favicon found." if ok else "No working favicon — Google shows a blank globe next to your result.",
+                            "Add a 48x48+ favicon and <link rel=\"icon\">.", "low", "easy"))
 
     return AreaResult(1, "technical_seo", "Technical SEO", checks, "Crawl Errors", str(n), weight=12)

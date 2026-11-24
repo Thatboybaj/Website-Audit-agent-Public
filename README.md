@@ -1,124 +1,90 @@
-# Website Audit Agent — HTML edition
+# AuditPilot — SEO + AI search (AEO) audits
 
-Audits any website across the **10 core areas** of the Website Audit Cheat Sheet, scores it 0–100, and returns a prioritized action plan, quick wins, an executive summary and a ready-to-send outreach email.
+AuditPilot audits any website for **search engines (SEO)** and **AI answer engines (AEO)** — ChatGPT search, Perplexity, Claude, Google AI Overviews, Bing Copilot — in about a minute.
 
-Two editions, same engine:
+- **Free:** full SEO audit (10 areas, 70+ checks), health score, action plan, PDF/HTML report, and an AI-search readiness *score* as a teaser.
+- **Pro:** the full AEO audit (9 categories, 40+ checks), AI crawler + firewall test, AI answer visibility test, ready-to-paste fixes (llms.txt, schema, robots.txt), AI-written summary and outreach email, competitor comparison, white-label PDFs.
 
-| | **HTML edition** | **No-HTML edition** |
-|---|---|---|
-| Output | HTML report (cheat-sheet design, screenshots) + Markdown + JSON | Markdown + JSON |
-| Best for | Sending reports to clients/prospects, PDF export (print → Save as PDF) | Lead agent, n8n/Make, Supabase, Framer front end, APIs |
-| `/report` endpoint | returns HTML | returns Markdown |
-| Extra dependency | Jinja2 | — |
+Pro is unlocked with **access codes** for now (no payment gateway yet). Paid detail is removed **on the server**, so it never reaches a free user's browser.
 
 ---
 
-## 1. How the agent works
+## What's checked
 
-```
-URL ─► Crawler ──────────────► SiteData ─► 10 area checks ─► Scoring ─► Action plan ─► Summary + email ─► Report
-        • pages (BFS, ≤N)         ▲            (pass/warn/fail     (weighted   (prioritize,   (Claude or
-        • robots.txt, sitemap     │             + impact/effort)    health      fix, monitor,  template)
-        • link status (404s)      │                                 score)      re-audit,
-        • SSL, HTTP→HTTPS         │                                             quick wins)
-        • exposed files           │
-        • CSS/JS/images           │
-       PageSpeed Insights ────────┤  (Lighthouse lab + real-user Core Web Vitals, mobile & desktop)
-       Headless browser ──────────┤  (375px + 1366px render: tap targets, contrast, overflow, CTAs, popups, screenshots)
-       Claude ────────────────────┘  (copy relevance & clarity)
-```
+**SEO (free)** — Technical SEO · Performance · Mobile · On-page SEO · UX · Conversion · Content · Security · Accessibility · Analytics. New in v2: soft-404 handling, www/non-www consolidation, structured-data validity, favicon, hreflang, broken images, security.txt.
 
-Each data source is optional — the agent degrades gracefully (`--no-psi`, `--no-browser`, `--no-ai`) and marks checks it couldn't run as *skipped* instead of guessing.
+**AEO (Pro)**
 
-## 2. What it checks (all 10 areas)
+| # | Category | What it checks |
+|---|---|---|
+| 1 | AI Crawler Access | robots.txt rules for 14 AI crawlers (search vs live-fetch vs training), **live requests as each bot** to catch CDN/firewall blocks, noindex/noai |
+| 2 | AI Discoverability | llms.txt (emerging, optional standard), llms-full.txt, sitemap + lastmod |
+| 3 | Structured Data for AI | Organization/LocalBusiness (+sameAs), WebSite, FAQPage, Article (author + dates), Breadcrumb, Service/Product |
+| 4 | Answer-Ready Content | question-led headings, answer-first paragraphs, lists/tables, a quotable definition, depth, specific facts |
+| 5 | Entity & Trust (E-E-A-T) | About page, NAP/contact, profiles across the web, reviews, named authors, cited sources, consistent brand name |
+| 6 | Freshness | machine-readable dates, recency, copyright year |
+| 7 | AI-Readable Rendering | % of content in raw HTML vs rendered (AI crawlers mostly don't run JS), H1 in HTML, response speed, alt text |
+| 8 | Snippet & Citation Controls | nosnippet / max-snippet, data-nosnippet, Open Graph, canonical, quotable summary |
+| 9 | Brand Clarity for AI | Claude reads the homepage like an answer engine: clarity score, missing facts, how AI would describe you |
 
-| # | Area | Checks | Key metric |
-|---|---|---|---|
-| 1 | Technical SEO | Crawlability & indexing · XML sitemap · Robots.txt · Canonical tags · Noindex pages · 404 errors · Redirect chains | Crawl Errors |
-| 2 | Performance | Page speed (Lighthouse) · Core Web Vitals (LCP/CLS/INP-TBT) · Image optimization · Minify CSS/JS · Caching & compression · Server response (TTFB) · Page weight | PageSpeed Score |
-| 3 | Mobile Usability | Mobile friendly · Tap targets (24/44px) · Text readability · Viewport settings · No horizontal scroll · Mobile UX flow (CTA in first screen, menu, overlays) | Mobile Usability /100 |
-| 4 | On-Page SEO | Title tags (length, duplicates) · Meta descriptions · Header structure · Content depth · Internal linking & orphan pages · Image alt · Open Graph & schema | Optimized Pages % |
-| 5 | User Experience | Easy navigation · Clear CTA · Readability (Flesch) · Consistent design (fonts) · Forms & interactions · Low friction (popups, autoplay) | Bounce Risk |
-| 6 | Conversion | Value proposition · CTA visibility above the fold · Lead capture · Trust signals · Form length · Checkout flow (e-commerce only) | Conversion Readiness % |
-| 7 | Content Quality | Relevant to audience (Claude) · Clear & helpful (Claude) · Up-to-date · Thin/duplicate content · Engaging format · Keyword targeting | Content Score (A+–F) |
-| 8 | Security | SSL certificate & expiry · HTTPS redirect · 6 security headers · Vulnerable JS libs, mixed content, version leaks, cookies · CMS plugins & themes · Exposed files (.git, .env, admin) | Security Score /100 |
-| 9 | Accessibility | Alt text · Color contrast (WCAG AA) · Keyboard navigation · Readable fonts · ARIA/accessible names · Screen-reader readiness (lang, landmarks) | Accessibility Score (A–F) |
-| 10 | Analytics & Tracking | GA4/GTM · Goal tracking · Conversion events & ad pixels · UTM misuse · Heatmaps · Data accuracy (duplicates, coverage, consent) | Tracked Goals % |
+**AI answer visibility test (Pro)** — asks real answer engines (Claude with web search, Perplexity Sonar) the questions buyers ask, then reports share of voice, citations vs mentions, and which competitors get cited instead.
 
-## 3. Scoring
+**Generated fixes (Pro)** — llms.txt, robots.txt AI-crawler block, Organization + WebSite + FAQPage JSON-LD, a quotable intro sentence. Built only from facts on the site (AI drafts are labelled for review).
 
-- Each check: **pass = 1, warn = 0.5, fail = 0**, weighted by impact (high 3 · medium 2 · low 1). Skipped/info checks don't count.
-- Area score = weighted average × 100.
-- Overall health score = area scores weighted (Technical SEO, Performance, On-Page 12 · Mobile, Conversion, Content, Security 10 · UX, Accessibility, Analytics 8).
-- Bands: **90–100 Excellent · 70–89 Good · 50–69 Needs Improvement · 30–49 Poor · 0–29 Critical**.
+---
 
-## 4. Action plan logic
-
-1. **Prioritize** — priority = impact × severity ÷ effort → high-impact, easy fixes first (top 7).
-2. **Fix & optimize** — every open issue grouped by area, with the fix and example URLs.
-3. **Test & monitor** — the 10 key metrics as your baseline.
-4. **Re-audit** — cadence from score (<50 monthly · 50–79 every 2 months · 80+ quarterly). Run with `--compare old.json` to see deltas.
-
-**Quick wins** map to the cheat sheet: page speed · broken links · images · titles & meta · mobile usability.
-
-## 5. Setup (local)
+## Run locally
 
 ```bash
-python -m venv .venv && source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-playwright install chromium                               # for browser checks (skip with --no-browser)
-cp .env.example .env                                      # add keys (all optional)
+playwright install chromium
+cp .env.example .env          # add keys (all optional)
+uvicorn api.index:app --reload   # open http://127.0.0.1:8000
 ```
 
-## 6. Usage
-
+CLI:
 ```bash
-python -m audit_agent https://example.com                       # full audit
-python -m audit_agent example.com --pages 50                    # crawl more pages
-python -m audit_agent example.com --no-psi --no-browser         # fast mode (~10s)
-python -m audit_agent example.com --compare reports/example-com-2026-10-01.json   # re-audit with progress
-python -m audit_agent --batch prospects.txt --format json       # audit a prospect list; prints lowest scores first
-python -m audit_agent example.com --show-email                  # (HTML edition) include outreach email in the report
+python -m audit_agent example.com                    # SEO + AEO, HTML/MD/JSON in ./reports
+python -m audit_agent example.com --visibility       # + AI answer visibility test
+python -m audit_agent example.com --no-aeo           # SEO only
+python -m audit_agent --batch prospects.txt --format json
 ```
 
-Reports land in `./reports/<domain>-<date>.{html,md,json}`.
+Tests (no network or keys needed): `pytest -q`
 
-## 7. API (for your lead agent / n8n / Framer)
+## Selling it (before a payment gateway)
 
-```bash
-uvicorn api.index:app --reload
-```
+1. Put codes in `PRO_CODES` (e.g. `PRO-AMAKA-7Q2,PRO-STUDIO-K9`).
+2. Customer clicks **Request access** → the form goes to `LEAD_WEBHOOK_URL` (and Vercel logs).
+3. You take payment however you like, then send them the code **or a magic link**: `https://your-app/?code=PRO-AMAKA-7Q2`.
+4. Later: set `CHECKOUT_URL` to your Lemon Squeezy/Paystack/Stripe link and have its webhook add codes (or user plans in Supabase). The app's `plans.py` is the only place that changes.
 
-- `GET /health`
-- `POST /audit` → JSON report
-  ```json
-  {"url": "https://example.com", "pages": 15, "psi": true, "browser": true, "ai": true}
-  ```
-- `GET /report?url=https://example.com&token=...` → HTML (HTML edition) or Markdown
+## Deploy
 
-Set `AUDIT_API_TOKEN` and send `Authorization: Bearer <token>`.
+**Vercel** (current): push to GitHub → Vercel redeploys. Add env vars in Settings → Environment Variables, then Redeploy. On Vercel there's no headless browser: tap-target/contrast/screenshot checks and the raw-vs-rendered comparison fall back to HTML heuristics, and PDF uses the print dialog.
 
-**Lead-gen flow:** prospect list → `POST /audit` → store `overall_score`, `action_plan.prioritize`, `outreach_email` in Supabase → low scores = warm leads → send email with the HTML report link.
-
-## 8. Deploy
-
-**Vercel (quick, no headless browser):** push the folder to GitHub → import in Vercel → add env vars → deploy. Browser checks auto-disable on Vercel; PSI still covers tap targets/contrast via Lighthouse. `maxDuration` is set to 300s (needs a plan that allows it; keep `pages` ≤ 15 on Hobby).
-
-**Full features (browser checks):** deploy to Railway/Render/Fly.io with:
+**Full features** (browser checks + real PDF files): Railway / Render / Fly.io
 ```
 pip install -r requirements.txt && playwright install --with-deps chromium
 uvicorn api.index:app --host 0.0.0.0 --port $PORT
 ```
 
-## 9. Tests
+## API
 
-```bash
-pytest -q          # audits the bundled fixture site (tests/fixture_site) with known issues
-```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/` | web app · `/?url=site.com` auto-runs · `/?code=…` unlocks Pro |
+| GET | `/embed` | iframe audit form for your site/portfolio |
+| POST | `/api/run` | `{url, pages, ai}` → report redacted to the caller's plan (`x-pro-code` header / owner bearer token) |
+| POST | `/api/visibility` | Pro · `{url, brand, questions[]}` |
+| POST | `/api/unlock` · `/api/lead` | code check · lead capture |
+| POST | `/render` · `/pdf` | `{report, branding}` → HTML / PDF (white-label for Pro) |
+| POST | `/audit` · GET `/report` · GET `/health` | owner/integrations |
 
-## 10. Limits (honest)
+## Limits to be honest about
 
-- Bounce rate and conversion rate need analytics access — the agent reports *Bounce Risk* and *Conversion Readiness* instead.
-- Goal tracking set up inside GTM can't be seen from outside; it's flagged as "verify".
-- JavaScript-only sites (some SPAs) need the browser mode for accurate content checks; the crawler reads server HTML. Framer and Webflow sites are server-rendered and work fully.
-- Only audit sites you own or are pitching; the crawler is polite (8 concurrent requests, respects robots.txt for crawling).
+- In-memory rate limits reset when Vercel starts a new instance — fine for launch, move to a database with accounts later.
+- Bot probes imitate each crawler's user agent; firewalls that verify crawler IPs may treat the real bots differently.
+- llms.txt is an emerging proposal; no major engine has confirmed using it for ranking, so it's weighted low.
+- AI visibility answers vary run to run; treat share of voice as a trend, not an exact number.

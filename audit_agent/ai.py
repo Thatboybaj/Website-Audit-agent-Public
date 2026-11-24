@@ -57,6 +57,7 @@ async def summarize(report: dict) -> str:
     if not enabled():
         return _fallback_summary(report)
     slim = {"url": report["url"], "score": report["overall_score"], "band": report["band"]["label"],
+            "ai_search_readiness": (report.get("aeo") or {}).get("score"),
             "areas": [{"name": a["name"], "score": a["score"], "metric": f"{a['key_metric_label']}: {a['key_metric_value']}"} for a in report["areas"]],
             "top_issues": [{k: i[k] for k in ("area", "check", "status", "detail", "fix")} for i in report["action_plan"]["prioritize"]]}
     prompt = f"""Write a website audit executive summary for a business owner (not a developer).
@@ -92,3 +93,34 @@ soft CTA offering the full report or a 15-min call. No hype, no fake compliments
         return await _ask(prompt, 400)
     except Exception:
         return _fallback_email(report, sender)
+
+
+async def evaluate_aeo(url: str, title: str, h1: str, text: str) -> dict:
+    """One Claude call that reads the homepage the way an AI assistant would."""
+    if not enabled() or len(text.split()) < 30:
+        return {}
+    prompt = f"""You are an AI search assistant (like ChatGPT or Perplexity) deciding whether you could confidently
+recommend and describe this business from its homepage alone.
+URL: {url}
+Title: {title}
+H1: {h1}
+Homepage text (truncated):
+\"\"\"{text[:7000]}\"\"\"
+
+Return ONLY JSON:
+{{"brand": "<exact business name>",
+ "clarity": <0-10: how clearly the page states what it is, who it serves, where, and why choose it>,
+ "clarity_note": "<1 sentence>",
+ "clarity_fix": "<1 concrete instruction>",
+ "missing": ["<facts an assistant would need but can't find, e.g. location, pricing, services list, years in business, team>"],
+ "ai_description": "<the 2-sentence description you would give a user, using only facts on the page>",
+ "summary": "<one-line plain summary for an llms.txt file, facts only>",
+ "intro": "<a quotable first sentence the site should use: '[Name] is a [what] that helps [who] [outcome] in [where].' Use only facts on the page; write [placeholder] for unknowns>",
+ "buyer_questions": ["<5 questions a potential customer would ask an AI assistant where this business SHOULD be recommended; do not include the brand name; include location if the business is local>"],
+ "faq": [{{"q": "<question a buyer asks>", "a": "<40-60 word answer using only facts on the page>"}}]}}
+Rules: never invent facts; keep faq to 5 items maximum and only where the page supports the answer."""
+    try:
+        raw = await _ask(prompt, 1400)
+        return json.loads(re.search(r"\{.*\}", raw, re.S).group(0))
+    except Exception as e:
+        return {"error": str(e)}

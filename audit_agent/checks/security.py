@@ -124,6 +124,11 @@ def run(site: SiteData) -> AreaResult:
                             "Move/rate-limit admin login, enable 2FA, disable XML-RPC if unused." if soft else "", "medium", "easy",
                             pages=soft))
 
+    checks.append(Check("security_txt", "security.txt", "pass" if site.extras.get("security_txt") else "info",
+                        "/.well-known/security.txt publishes a security contact." if site.extras.get("security_txt")
+                        else "No /.well-known/security.txt (optional; tells researchers how to report issues).",
+                        "Add a security.txt with a Contact: line.", "low", "easy"))
+
     area = AreaResult(8, "security", "Security", checks, "Security Score", weight=10)
     area.compute_score()
     area.key_metric_value = f"{area.score}/100"
