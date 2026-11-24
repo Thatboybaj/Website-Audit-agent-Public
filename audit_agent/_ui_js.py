@@ -2,7 +2,7 @@ JS = r"""
 const CFG = window.__CFG__;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const col = s => s >= 90 ? "#5fd39a" : s >= 70 ? "#a3d977" : s >= 50 ? "#f2b84b" : s >= 30 ? "#ff9f5a" : "#ff6b6b";
+const col = s => s >= 90 ? "#1f9d5c" : s >= 70 ? "#5ea636" : s >= 50 ? "#d18b0b" : s >= 30 ? "#e0672a" : "#dc3b3b";
 const host = u => { try { return new URL(u.includes("//") ? u : "https://" + u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
 const ls = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
              set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
@@ -26,6 +26,8 @@ function setPlan(p) {
   plan = p; const pill = $("#planPill"); pill.className = "plan " + p; $("#planLbl").textContent = CFG.plans[p].label;
   $("#unlockBtn").textContent = p === "free" ? "Unlock Pro" : p === "owner" ? "Owner" : "Pro active";
   $("#pagesChip").textContent = CFG.plans[p].max_pages + " pages · " + (p === "free" ? "free" : "AEO unlocked");
+  $("#planNote").textContent = p === "free" ? "SEO audit is free. AI search (AEO) detail is Pro." : p === "owner" ? "Owner key active — every feature, no limits." : "Pro active — full AEO audit, visibility test, compare and white-label.";
+  $("#unlockBtn").className = "btn sm " + (p === "free" ? "blue" : "ghost");
   if (current) renderResults(current, true);
 }
 async function verifyCode(c) {
@@ -33,30 +35,38 @@ async function verifyCode(c) {
 }
 
 // ---------------------------------------------------------------- views
-function show(v) { $$(".view").forEach(x => x.classList.toggle("on", x.id === v)); if (v !== "landing") window.scrollTo({ top: 0, behavior: "smooth" }); if (v === "history") renderHistory(); }
-$$("[data-go]").forEach(a => a.addEventListener("click", e => { if (!$("#landing").classList.contains("on")) { e.preventDefault(); show("landing"); setTimeout(() => document.querySelector(a.getAttribute("href")).scrollIntoView({ behavior: "smooth" }), 60); } }));
-$$("[data-view]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); show(a.dataset.view); }));
-$(".logo").addEventListener("click", e => { e.preventDefault(); show("landing"); });
+const TITLES = { new: ["Workspace", "New audit"], results: ["Report", "Audit report"], compare: ["Report", "Compare"], history: ["Workspace", "History"] };
+function show(v) {
+  $$(".view").forEach(x => x.classList.toggle("on", x.id === v)); $$(".nav[data-view]").forEach(n => n.classList.toggle("on", n.dataset.view === v));
+  const t = TITLES[v] || TITLES.new; $("#crumb").textContent = t[0]; $("#pageTitle").textContent = v === "results" && current ? host(current.url) : t[1];
+  window.scrollTo({ top: 0, behavior: "smooth" }); closeSide(); if (v === "history") renderHistory(); if (v === "new") renderRecent();
+}
+$$("[data-view]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); if (a.dataset.view === "compare" && !isPro()) return openUnlock(); show(a.dataset.view); }));
+$("#logo").addEventListener("click", () => show("new"));
+const closeSide = () => $("#side").classList.remove("open");
+$("#mtoggle").onclick = () => $("#side").classList.toggle("open"); $("#scrim").onclick = closeSide;
+$("#planNav").onclick = () => openUnlock();
+function renderStatus() {
+  const s = [["Engine", true], ["PageSpeed", CFG.psi], ["Claude", CFG.ai], ["Browser", CFG.browser], ["AI engines", (CFG.engines || []).length > 0]];
+  $("#status").innerHTML = s.map(([n, on]) => `<span title="${on ? "connected" : "not configured"}"><i class="${on ? "on" : ""}"></i>${n}</span>`).join("");
+}
 
-// ---------------------------------------------------------------- landing
+// ---------------------------------------------------------------- new audit
 function renderLanding() {
+  renderStatus(); renderRecent();
   $("#seoList").innerHTML = SEO_AREAS.map(([n, d]) => `<li><div>${n}<small>${d}</small></div></li>`).join("");
   $("#aeoList").innerHTML = AEO_AREAS.map(([n, d]) => `<li><div>${n}<small>${d}</small></div></li>`).join("");
-  const P = CFG.pricing;
-  $("#priceCards").innerHTML = `
-   <div class="card price"><div class="ph"><span class="mlabel">Free</span><span class="tag ok">SEO</span></div><div class="amt">$0</div><p class="dim">Everything you need to fix search basics.</p>
-     <ul>${P.free_features.map(f => `<li>${esc(f)}</li>`).join("")}</ul><button class="btn ghost" onclick="document.getElementById('url').focus();window.scrollTo({top:0,behavior:'smooth'})">Run a free audit</button></div>
-   <div class="card price blue-edge"><div class="ph"><span class="mlabel">Pro</span><span class="tag blue">AEO</span></div><div class="amt">${esc(P.aeo_report)}<small> / report</small></div>
-     <p class="dim">or ${esc(P.pro_monthly)} for unlimited audits & monitoring · ${esc(P.currency_note)}</p>
-     <ul>${P.pro_features.map(f => `<li>${esc(f)}</li>`).join("")}</ul><button class="btn blue" onclick="openUnlock()">${P.checkout_url ? "Get Pro" : "Get Pro access"}</button></div>`;
-  $("#yr").textContent = new Date().getFullYear();
+}
+function renderRecent() {
+  const h = hist(); $("#histCnt").textContent = h.length || ""; $("#recentCard").hidden = !h.length; if (!h.length) return;
+  $("#recent").innerHTML = histTable(h.slice(0, 5)); bindHistRows("#recent");
 }
 
 // ---------------------------------------------------------------- run
 let logTimer;
 function startLog() {
-  const box = $("#inspector"); box.classList.add("running");
-  box.innerHTML = `<div class="card log" id="log"><div class="ih mlabel" style="margin-bottom:10px">Live audit · ${esc(host($("#url").value))}</div></div>`;
+  const box = $("#inspector"); box.hidden = false;
+  box.innerHTML = `<div id="log"><div class="ph" style="margin:0"><span class="mlabel">Live audit · ${esc(host($("#url").value))}</span><span class="tag blue">running</span></div><div class="scan"><i></i></div></div>`;
   let i = 0; const t0 = Date.now();
   const add = () => { if (i >= STEPS.length) return; const log = $("#log"); if (!log) return;
     log.querySelectorAll(".logline:not(.done)").forEach(l => { l.classList.add("done"); l.querySelector("b").textContent = "✓"; });
@@ -82,8 +92,7 @@ async function runAudit(url) {
   } catch (e) { $("#err").textContent = e.message; }
   finally { stopLog(); go.disabled = false; go.innerHTML = 'Run audit <span aria-hidden="true">→</span>'; resetInspector(); }
 }
-const INSPECTOR = $("#inspector").innerHTML;
-function resetInspector() { const b = $("#inspector"); b.classList.remove("running"); b.innerHTML = INSPECTOR; }
+function resetInspector() { const b = $("#inspector"); b.hidden = true; b.innerHTML = ""; }
 $("#auditForm").addEventListener("submit", e => { e.preventDefault(); const u = $("#url").value.trim(); if (u) runAudit(u); });
 
 // ---------------------------------------------------------------- history
@@ -97,31 +106,38 @@ async function findPrev(r) {
   const h = hist().filter(x => x.host === host(r.url) && x.at < r.audited_at);
   return h.length ? await idb.get(h[0].id) : null;
 }
+function histTable(h) {
+  return `<table><tr><th>Website</th><th>SEO</th><th>AI search</th><th>Status</th><th>Top issue</th><th>Date</th></tr>${h.map(x => `
+    <tr class="row" data-id="${esc(x.id)}"><td><b>${esc(x.host)}</b></td><td><span class="pill" style="background:${col(x.seo)}">${x.seo}</span></td>
+    <td>${x.aeo == null ? '<span class="dim">—</span>' : `<span class="pill" style="background:var(--aeo)">${x.aeo}</span>`}</td><td>${esc(x.band)}</td>
+    <td class="dim">${esc(x.top || "—")}</td><td class="mono dim" style="font-size:12px;white-space:nowrap">${esc(x.at.slice(0, 16).replace("T", " "))}</td></tr>`).join("")}</table>`;
+}
+function bindHistRows(sel) { $$(sel + " tr.row").forEach(tr => tr.onclick = async () => { const r = await idb.get(tr.dataset.id); if (!r) return toast("Full report not stored — re-run it"); await renderResults(r); show("results"); }); }
 function renderHistory() {
-  const h = hist();
-  if (!h.length) { $("#histBody").innerHTML = `<div class="empty">No audits yet — run one from the home page.</div>`; return; }
-  $("#histBody").innerHTML = `<table><tr><th>Website</th><th>SEO</th><th>AI search</th><th>Status</th><th>Top issue</th><th>Date</th></tr>${h.map((x, i) => `
-    <tr class="row" data-i="${i}"><td><b>${esc(x.host)}</b></td><td><span class="pill" style="background:${col(x.seo)}">${x.seo}</span></td>
-    <td>${x.aeo == null ? '<span class="dim">—</span>' : `<span class="pill" style="background:${col(x.aeo)}">${x.aeo}</span>`}</td><td>${esc(x.band)}</td>
-    <td class="dim">${esc(x.top || "—")}</td><td class="mono dim" style="font-size:12px">${esc(x.at.slice(0, 16).replace("T", " "))}</td></tr>`).join("")}</table>`;
-  $$("#histBody tr.row").forEach(tr => tr.onclick = async () => { const x = hist()[tr.dataset.i]; const r = await idb.get(x.id); if (!r) return toast("Full report not stored — re-run it"); renderResults(r); show("results"); });
+  const h = hist(); $("#histCnt").textContent = h.length || "";
+  if (!h.length) { $("#histBody").innerHTML = `<div class="empty">No audits yet. Run one from <a href="#" data-goto="new">New audit</a>.</div>`; $("#histBody [data-goto]").onclick = e => { e.preventDefault(); show("new"); }; return; }
+  $("#histBody").innerHTML = histTable(h); bindHistRows("#histBody");
 }
 $("#csv").onclick = () => { const h = hist(); if (!h.length) return; const rows = [["url", "seo_score", "aeo_score", "band", "top_issue", "date"], ...h.map(x => [x.url, x.seo, x.aeo ?? "", x.band, x.top, x.at])];
   dl(new Blob([rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" }), "auditpilot-history.csv"); };
-$("#clear").onclick = async () => { if (!confirm("Clear all saved audits in this browser?")) return; ls.set("ap_hist", []); await idb.clear(); renderHistory(); };
+$("#clear").onclick = async () => { if (!confirm("Clear all saved audits in this browser?")) return; ls.set("ap_hist", []); await idb.clear(); renderHistory(); renderRecent(); };
 
 // ---------------------------------------------------------------- results
 function ring(s, color, label) {
-  const C = 2 * Math.PI * 46, v = Math.max(0, Math.min(100, s || 0));
-  return `<svg class="ring" viewBox="0 0 108 108" role="img" aria-label="${label} ${v} out of 100"><circle cx="54" cy="54" r="46" fill="none" stroke="rgba(244,241,234,.07)" stroke-width="8"/>
-    <circle cx="54" cy="54" r="46" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C * v / 100} ${C}" transform="rotate(-90 54 54)"/>
-    <text x="54" y="62" text-anchor="middle" fill="#f4f1ea" font-size="32" font-weight="500">${v}</text></svg>`;
+  const v = Math.max(0, Math.min(100, s || 0)), L = Math.PI * 52, arc = "M14 74 A52 52 0 0 1 118 74";
+  const ticks = Array.from({ length: 11 }, (_, t) => { const a = Math.PI * (1 - t / 10), c = Math.cos(a), n = Math.sin(a), r1 = t % 5 ? 61 : 59;
+    return `<line x1="${(66 + r1 * c).toFixed(1)}" y1="${(74 - r1 * n).toFixed(1)}" x2="${(66 + 64 * c).toFixed(1)}" y2="${(74 - 64 * n).toFixed(1)}" style="stroke:var(--line-2)" stroke-width="1.4"/>`; }).join("");
+  return `<svg class="ring" viewBox="0 0 132 84" role="img" aria-label="${label} ${v} out of 100">${ticks}<path d="${arc}" fill="none" style="stroke:var(--track)" stroke-width="9" stroke-linecap="round"/>
+    <path d="${arc}" fill="none" style="stroke:${color}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${L * v / 100} ${L}"/>
+    <text x="66" y="72" text-anchor="middle" fill="currentColor" font-size="30" font-weight="600" font-family="Instrument Sans,system-ui,sans-serif" letter-spacing="-1">${v}</text></svg>`;
 }
 const delta = (now, before) => before == null || now == null ? "" : now === before ? `<span class="delta dim">±0</span>` : `<span class="delta ${now > before ? "up" : "down"}">${now > before ? "+" : ""}${now - before}</span>`;
 const aeoOk = r => r.aeo && !r.aeo.error;
 
 async function renderResults(r, keepTab) {
   current = r; if (!keepTab) tab = "overview";
+  $("#navResults").disabled = false; $("#navCompare").disabled = false; $("#navHost").textContent = host(r.url).slice(0, 14);
+  if ($("#results").classList.contains("on")) $("#pageTitle").textContent = host(r.url);
   prev = await findPrev(r);
   const pages = r.meta.pages.filter(p => p.status === 200).length;
   $("#rUrl").textContent = host(r.url);
@@ -132,8 +148,8 @@ async function renderResults(r, keepTab) {
   $("#scores").innerHTML = `
     <div class="card sc"><div class="mlabel">SEO health ${delta(r.overall_score, prev && prev.overall_score)}</div><div class="gwrap">${ring(r.overall_score, col(r.overall_score), "SEO health")}
       <div><span class="band" style="background:${col(r.overall_score)}22;color:${col(r.overall_score)}">${esc(r.band.label)}</span><p>${esc(r.band.description)}</p></div></div></div>
-    <div class="card sc ${aeoOk(r) ? "" : "dim"}"><div class="mlabel">AI search readiness ${aeoOk(r) ? delta(A.score, prev && prev.aeo && prev.aeo.score) : ""}</div>${aeoOk(r) ? `<div class="gwrap">${ring(A.score, "#8ea0ff", "AI search readiness")}
-      <div><span class="band" style="background:rgba(142,160,255,.14);color:#8ea0ff">${esc(A.band.label)}</span><p>${A.locked ? `${A.issues_hidden} AI-search issues found. <a href="#" onclick="openUnlock();return false">Unlock the fixes →</a>` : "How ready the site is to be found and cited by AI assistants."}</p></div></div>` : `<p style="margin-top:14px">AEO not run.</p>`}</div>
+    <div class="card sc ${aeoOk(r) ? "" : "dim"}"><div class="mlabel">AI search readiness ${aeoOk(r) ? delta(A.score, prev && prev.aeo && prev.aeo.score) : ""}</div>${aeoOk(r) ? `<div class="gwrap">${ring(A.score, "var(--aeo)", "AI search readiness")}
+      <div><span class="band" style="background:var(--aeo-soft);color:var(--aeo-ink)">${esc(A.band.label)}</span><p>${A.locked ? `${A.issues_hidden} AI-search issues found. <a href="#" onclick="openUnlock();return false">Unlock the fixes →</a>` : "How ready the site is to be found and cited by AI assistants."}</p></div></div>` : `<p style="margin-top:14px">AEO not run.</p>`}</div>
     <div class="card sc"><div class="mlabel">Issues</div><div class="statn"><div><b class="bad">${c.critical}</b><span>critical</span></div><div><b class="mid">${c.warnings}</b><span>warnings</span></div><div><b class="okc">${c.passed}</b><span>passed</span></div></div></div>
     <div class="card sc"><div class="mlabel">AI crawlers</div><div class="statn"><div><b>${okBots}/${bots.length || 0}</b><span>search bots allowed</span></div></div>
       <p style="margin-top:10px">${fw ? `<span class="bad">${fw} blocked by firewall/CDN</span>` : bots.length ? '<span class="okc">No firewall blocks detected</span>' : ""}</p></div>`;
@@ -173,7 +189,7 @@ function tOverview(r) {
 function areaCard(a, k, i, locked) {
   const dots = a.checks.map(c => `<i class="${locked && c.locked ? (c.status === "pass" ? "p" : c.status === "info" || c.status === "skip" ? "s0" : "l") : ({ pass: "p", warn: "w", fail: "f" }[c.status] || "s0")}" title="${esc(c.label)}"></i>`).join("");
   return `<button class="card area" data-area="${k}:${i}"><div class="mlabel">${String(a.number).padStart(2, "0")} · ${esc(a.key_metric_label)}</div><h4>${esc(a.name)}</h4>
-    <div class="s" style="color:${k === "aeo" ? "#8ea0ff" : col(a.score)}">${a.score}<small>/100</small></div><div class="bar2"><i style="width:${a.score}%;background:${k === "aeo" ? "#8ea0ff" : col(a.score)}"></i></div>
+    <div class="s" style="color:${k === "aeo" ? "var(--aeo)" : col(a.score)}">${a.score}<small>/100</small></div><div class="bar2"><i style="width:${a.score}%;background:${k === "aeo" ? "var(--aeo)" : col(a.score)}"></i></div>
     <div class="dots">${dots}</div><div class="km"><span>${esc(a.key_metric_label)}</span><b>${esc(a.key_metric_value)}</b></div></button>`;
 }
 const tSeo = r => `<div class="grid">${r.areas.map((a, i) => areaCard(a, "seo", i)).join("")}</div>`;
@@ -181,8 +197,8 @@ const tSeo = r => `<div class="grid">${r.areas.map((a, i) => areaCard(a, "seo", 
 function botsTable(A) {
   return `<div class="card tablewrap" style="margin-bottom:14px"><table><tr><th>Crawler</th><th>Company</th><th>Role</th><th>Powers</th><th>robots.txt</th><th>Live request</th></tr>${A.bots.map(b => `
     <tr><td><b>${esc(b.bot)}</b></td><td class="dim">${esc(b.company)}</td><td><span class="tag ${b.role === "search" ? "blue" : b.role === "user" ? "ok" : ""}">${esc(b.role_label)}</span></td><td class="dim">${esc(b.engine)}</td>
-    <td><span class="st"><i style="background:${b.robots === "blocked" ? (b.role === "training" ? "#f2b84b" : "#ff6b6b") : "#5fd39a"}"></i>${esc(b.robots)}</span></td>
-    <td>${b.live == null ? '<span class="dim">—</span>' : `<span class="st"><i style="background:${b.live === "blocked" ? "#ff6b6b" : "#5fd39a"}"></i>${esc(b.live)}</span>`}</td></tr>`).join("")}</table></div>`;
+    <td><span class="st"><i style="background:${b.robots === "blocked" ? (b.role === "training" ? "var(--warn)" : "var(--bad)") : "var(--good)"}"></i>${esc(b.robots)}</span></td>
+    <td>${b.live == null ? '<span class="dim">—</span>' : `<span class="st"><i style="background:${b.live === "blocked" ? "var(--bad)" : "var(--good)"}"></i>${esc(b.live)}</span>`}</td></tr>`).join("")}</table></div>`;
 }
 
 function tAeo(r) {
@@ -220,7 +236,7 @@ function visHtml(v) {
   return `<div class="split" style="margin-top:16px"><div><div class="sov">${v.share_of_voice}%</div><p class="dim">AI share of voice — cited or mentioned in ${v.cited + v.mentioned > 0 ? Math.round(v.share_of_voice * v.total / 100) : 0} of ${v.total} answers (${v.cited} citations, ${v.mentioned} mentions) across ${esc(v.engines.join(" & "))}.</p>
       ${v.results.map(x => x.error ? `<div class="vq"><span class="bad">${esc(x.engine)}: ${esc(x.error)}</span></div>` : `<details class="vq"><summary><span class="tag ${x.cited ? "ok" : x.mentioned ? "warn" : "fail"}">${x.cited ? "cited" : x.mentioned ? "mentioned" : "absent"}</span><span class="tag">${esc(x.engine)}</span><span>${esc(x.question)}</span></summary>
       <p>${esc(x.answer)}</p>${x.sources.map(s => `<div class="src">${esc(s)}</div>`).join("")}</details>`).join("")}</div>
-    <div><div class="mlabel">Who AI cites instead</div>${(v.competitors || []).map(c => `<div class="comp"><span style="width:44%;word-break:break-all">${esc(c.domain)}</span><div class="bar2"><i style="width:${Math.min(100, c.count / Math.max(1, v.total) * 100)}%;background:#8ea0ff"></i></div><span class="mono dim">${c.count}</span></div>`).join("") || '<p class="dim">No other sources cited.</p>'}</div></div>`;
+    <div><div class="mlabel">Who AI cites instead</div>${(v.competitors || []).map(c => `<div class="comp"><span style="width:44%;word-break:break-all">${esc(c.domain)}</span><div class="bar2"><i style="width:${Math.min(100, c.count / Math.max(1, v.total) * 100)}%;background:var(--aeo)"></i></div><span class="mono dim">${c.count}</span></div>`).join("") || '<p class="dim">No other sources cited.</p>'}</div></div>`;
 }
 async function runVisibility() {
   const b = $("#visGo"); const qs = $("#visQ").value.split("\n").map(x => x.trim()).filter(Boolean);
@@ -245,8 +261,8 @@ function tFixes(r) {
   const items = allIssues(r), done = new Set(ls.get("ap_done:" + host(r.url), [])); const n = items.filter(i => done.has(i.id)).length;
   return `<div class="card panel2"><div class="ph" style="margin:0"><div><div class="mlabel">Fix list · ${items.length} items${r.aeo && r.aeo.locked ? " · AEO fixes locked" : ""}</div><h3 id="todoCount">${n} of ${items.length} done</h3></div>
     <button class="btn ghost sm" onclick="copyAll()">Copy as checklist</button></div><div class="prog"><i id="todoBar" style="width:${items.length ? n / items.length * 100 : 0}%"></i></div>
-    <ul class="todo">${items.map(i => `<li class="${done.has(i.id) ? "done" : ""}"><input type="checkbox" data-todo="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""} aria-label="Mark ${esc(i.title)} done">
-      <div><b>${esc(i.title)}</b> <span class="tag ${tagFor(i.status)}">${esc(i.status)}</span> <span class="tag">${esc(i.area)}</span><p>${esc(i.detail)}</p><p style="color:#f4f1ea">→ ${esc(i.fix)}</p></div>
+    <ul class="todo">${items.map(i => `<li class="sev-${i.status} ${done.has(i.id) ? "done" : ""}"><input type="checkbox" data-todo="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""} aria-label="Mark ${esc(i.title)} done">
+      <div><b>${esc(i.title)}</b> <span class="tag ${tagFor(i.status)}">${esc(i.status)}</span> <span class="tag">${esc(i.area)}</span><p>${esc(i.detail)}</p><p style="color:var(--ink)">→ ${esc(i.fix)}</p></div>
       <span class="tag">${esc(i.impact)} · ${esc(i.effort)}</span></li>`).join("")}</ul></div>`;
 }
 function bindTodos() {
@@ -270,11 +286,11 @@ const tEmail = r => `<div class="card panel2"><div class="ph" style="margin:0"><
 
 // ---------------------------------------------------------------- drawer
 function openArea(a, kind) {
-  const st = { pass: "#5fd39a", warn: "#f2b84b", fail: "#ff6b6b" };
+  const st = { pass: "var(--good)", warn: "var(--warn)", fail: "var(--bad)" };
   $("#dpanel").innerHTML = `<div class="ph" style="margin:0"><span class="mlabel">${kind === "aeo" ? "AI search" : "SEO"} · area ${a.number} · ${esc(a.key_metric_label)}: ${esc(a.key_metric_value)}</span><button class="btn ghost sm" onclick="closeDrawer()">Close</button></div>
-    <h2 style="font-size:34px;margin:14px 0 4px">${esc(a.name)}</h2><div class="big" style="color:${kind === "aeo" ? "#8ea0ff" : col(a.score)}">${a.score}<small style="font-size:16px;color:var(--grey-2)">/100</small></div>
+    <h2 style="font-size:26px;margin:14px 0 4px">${esc(a.name)}</h2><div class="big" style="color:${kind === "aeo" ? "var(--aeo)" : col(a.score)}">${a.score}<small style="font-size:16px;color:var(--faint)">/100</small></div>
     ${a.checks.some(c => c.locked) ? `<div class="card upsell" style="padding:18px;margin-top:16px"><p>Detail and fixes for these checks are part of Pro.</p><button class="btn blue sm" onclick="openUnlock()">Unlock</button></div>` : ""}
-    ${a.checks.map(c => `<div class="chk"><h5><span class="st"><i style="background:${c.locked && c.status !== "pass" ? "#4b5160" : st[c.status] || "#2b303b"}"></i></span>${esc(c.label)}<span class="tag ${c.locked && c.status !== "pass" ? "" : tagFor(c.status)}" style="margin-left:auto">${c.locked && c.status !== "pass" ? "🔒 " + c.status : esc(c.status)}</span></h5>
+    ${a.checks.map(c => `<div class="chk"><h5><span class="st"><i style="background:${c.locked && c.status !== "pass" ? "var(--lock)" : st[c.status] || "var(--track)"}"></i></span>${esc(c.label)}<span class="tag ${c.locked && c.status !== "pass" ? "" : tagFor(c.status)}" style="margin-left:auto">${c.locked && c.status !== "pass" ? "🔒 " + c.status : esc(c.status)}</span></h5>
       ${c.detail ? `<p>${esc(c.detail)}</p>` : ""}${c.fix && ["warn", "fail"].includes(c.status) ? `<p class="fx"><b>Fix:</b> ${esc(c.fix)}</p>` : ""}${(c.pages || []).slice(0, 8).map(p => `<code>${esc(p)}</code>`).join("")}</div>`).join("")}`;
   $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false");
 }
@@ -305,7 +321,7 @@ function bindLead(interest) {
 window.openUnlock = () => {
   const P = CFG.pricing;
   openModal(`<div class="ph" style="margin:0"><span class="mlabel">${plan === "free" ? "Unlock Pro" : "Your plan: " + CFG.plans[plan].label}</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
-    <h2 style="font-size:34px">Get cited by AI.</h2><p class="dim">${esc(P.aeo_report)} per report or ${esc(P.pro_monthly)} · ${esc(P.currency_note)}</p>
+    <h2>Get cited by AI.</h2><p class="dim">${esc(P.aeo_report)} per report or ${esc(P.pro_monthly)} · ${esc(P.currency_note)}</p>
     <ul class="alist" style="margin-top:10px">${P.pro_features.slice(1, 7).map(f => `<li><div>${esc(f)}</div></li>`).join("")}</ul>
     ${P.checkout_url ? `<a class="btn blue" style="width:100%;margin-top:14px" href="${esc(P.checkout_url)}" target="_blank" rel="noopener">Buy Pro</a>` : ""}
     <div class="mtabs"><button class="btn ghost sm" id="mtCode" type="button">I have a code</button><button class="btn ghost sm" id="mtReq" type="button">Request access</button></div><div id="mtBody"></div>
@@ -315,29 +331,29 @@ window.openUnlock = () => {
   $("#mtCode").onclick = codeView; $("#mtReq").onclick = () => { $("#mtBody").innerHTML = leadForm("pro", "Request Pro access", "Tell me about your site or agency"); bindLead("pro"); };
   codeView();
 };
-window.openLead = (interest) => { openModal(`<div class="ph" style="margin:0"><span class="mlabel">Done-for-you fixes</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div><h2 style="font-size:32px">Get this fixed.</h2><p class="dim">Send the report and get a quote for the SEO + AI search fixes.</p>${leadForm(interest, "Request a quote", "Anything specific you want fixed?")}`); bindLead(interest); };
+window.openLead = (interest) => { openModal(`<div class="ph" style="margin:0"><span class="mlabel">Done-for-you fixes</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div><h2>Get this fixed.</h2><p class="dim">Send the report and get a quote for the SEO + AI search fixes.</p>${leadForm(interest, "Request a quote", "Anything specific you want fixed?")}`); bindLead(interest); };
 window.signOut = () => { code = ""; key = ""; ls.set("ap_code", ""); ls.set("ap_key", ""); setPlan("free"); closeModal(); toast("Switched to the free plan"); };
 $("#unlockBtn").onclick = () => openUnlock(); $("#planPill").onclick = () => openUnlock();
 
 function openSettings() {
   const b = ls.get("ap_brand", {}); const can = isPro(); const origin = location.origin;
   openModal(`<div class="ph" style="margin:0"><span class="mlabel">Settings</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
-    <h2 style="font-size:30px">White-label reports</h2><p class="dim">${can ? "Your brand on PDF and HTML reports." : "Pro feature — put your agency's brand on every report."}</p>
+    <h2>White-label reports</h2><p class="dim">${can ? "Your brand on PDF and HTML reports." : "Pro feature — put your agency's brand on every report."}</p>
     <fieldset ${can ? "" : "disabled"} style="border:0;padding:0;margin:0;${can ? "" : "opacity:.5"}">
     <label class="fl" for="bName">Agency name</label><input class="inp" id="bName" value="${esc(b.name || "")}">
     <label class="fl" for="bLogo">Logo URL</label><input class="inp" id="bLogo" value="${esc(b.logo || "")}" placeholder="https://…/logo.png">
-    <label class="fl" for="bColor">Accent colour</label><input class="inp" id="bColor" value="${esc(b.color || "#2340d9")}">
+    <label class="fl" for="bColor">Accent colour</label><input class="inp" id="bColor" value="${esc(b.color || "#2b4ad8")}">
     <label class="fl" for="bContact">Footer contact line</label><input class="inp" id="bContact" value="${esc(b.contact || "")}" placeholder="hello@agency.com · +974 …">
     <button class="btn light" style="margin-top:14px" id="bSave" type="button">Save branding</button></fieldset>
     <h3 style="margin-top:26px">Embed on your website</h3><p class="dim" style="margin:0 0 8px">A small audit form for your portfolio or client sites.</p>
-    <div class="code"><div class="cbtn"><button class="btn ghost sm" type="button" id="embCopy">Copy</button></div><pre id="embCode">${esc(`<iframe src="${origin}/embed" title="${CFG.product}" width="100%" height="230" style="border:0;border-radius:18px" loading="lazy"></iframe>`)}</pre></div>
+    <div class="code"><div class="cbtn"><button class="btn ghost sm" type="button" id="embCopy">Copy</button></div><pre id="embCode">${esc(`<iframe src="${origin}/embed" title="${CFG.product}" width="100%" height="230" style="border:0;border-radius:14px" loading="lazy"></iframe>`)}</pre></div>
     <h3 style="margin-top:26px">Owner key</h3><p class="dim" style="margin:0 0 8px">Paste your AUDIT_API_TOKEN to unlock everything with no limits on this browser.</p>
     <input class="inp" id="ownKey" type="password" value="${esc(key)}"><button class="btn ghost sm" style="margin-top:10px" id="ownSave" type="button">Save key</button>`);
   $("#embCopy").onclick = () => navigator.clipboard.writeText($("#embCode").textContent).then(() => toast("Embed code copied"));
   $("#bSave") && ($("#bSave").onclick = () => { ls.set("ap_brand", { name: $("#bName").value.trim(), logo: $("#bLogo").value.trim(), color: $("#bColor").value.trim(), contact: $("#bContact").value.trim() }); toast("Branding saved"); });
   $("#ownSave").onclick = () => { key = $("#ownKey").value.trim(); ls.set("ap_key", key); setPlan(key ? "owner" : code ? "pro" : "free"); closeModal(); toast(key ? "Owner mode on — server checks the key on each audit" : "Owner key removed"); };
 }
-$("#settingsLink").onclick = e => { e.preventDefault(); openSettings(); };
+$("#settingsLink").onclick = () => { closeSide(); openSettings(); };
 
 // ---------------------------------------------------------------- downloads
 function dl(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
@@ -355,10 +371,10 @@ $("#dlPdf").onclick = async () => {
     const h = await fetch("/render", { method: "POST", headers: headers(), body: body({ print: 1 }) }); w.document.open(); w.document.write(await h.text()); w.document.close(); toast("Choose “Save as PDF” in the print dialog");
   } catch (e) { toast("Couldn't create the PDF"); } finally { b.disabled = false; b.textContent = "Download PDF"; }
 };
-$("#reAudit").onclick = () => { $("#url").value = current.url; show("landing"); window.scrollTo({ top: 0 }); runAudit(current.url); };
+$("#reAudit").onclick = () => { $("#url").value = current.url; show("new"); runAudit(current.url); };
 
 // ---------------------------------------------------------------- compare
-$("#cmpBtn").onclick = () => { if (!isPro()) return openUnlock(); show("compare"); $("#cmpOut").innerHTML = ""; $("#cmpUrl").focus(); };
+$("#cmpBtn").onclick = () => { if (!isPro()) return openUnlock(); show("compare"); $("#cmpUrl").focus(); };
 $("#cmpForm").onsubmit = async e => {
   e.preventDefault(); const b = $("#cmpGo"); b.disabled = true; b.textContent = "Auditing…"; $("#cmpErr").textContent = "";
   try { const r = await fetch("/api/run", { method: "POST", headers: headers(), body: JSON.stringify({ url: $("#cmpUrl").value, pages: Math.min(10, CFG.plans[plan].max_pages), ai: false }) });

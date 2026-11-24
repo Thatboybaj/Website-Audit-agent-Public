@@ -1,18 +1,10 @@
-"""AuditPilot web app (served at "/"). Design system follows Bright's recent builds (Countersign):
-ink #07080b / ledger #f4f1ea / blue #2340d9 + #8ea0ff, Funnel Display + Inter Tight + JetBrains Mono,
-wireframe globe, inspector cards. One file, no build step."""
+"""AuditPilot app (served at "/"). An app, not a marketing site: sidebar shell from the Pilot agents family
+(LeadPilot, ProspectPilot) — light/dark dashboard, hairline cards, family blue — with AuditPilot's own identity:
+violet AI-search accent, Instrument Sans + Geist Mono, scan-dial mark and dial gauges. One file, no build step."""
 import json
 
 from ._ui_css import CSS
 from ._ui_js import JS
-
-FAQ = [
-    ("What is an AEO audit?", "An AEO (Answer Engine Optimization) audit checks whether AI assistants like ChatGPT, Perplexity, Claude and Google's AI Overviews can reach, read, trust and quote your website — and shows exactly what to fix so they recommend you."),
-    ("What's the difference between SEO and AEO?", "SEO gets you ranked in search results. AEO gets you cited inside AI answers. They overlap, but AEO adds AI crawler access, answer-ready content, entity signals and machine-readable facts."),
-    ("Is the SEO audit really free?", "Yes. The full SEO audit — 10 areas and 70+ checks, with a health score, action plan and PDF — is free. The detailed AEO audit, AI visibility test and ready-to-paste fixes are part of Pro."),
-    ("How long does an audit take?", "Usually 20–60 seconds, depending on the site's speed and how many pages are crawled."),
-    ("Do you store my website data?", "No. Reports are generated on demand and saved only in your own browser's history."),
-]
 
 APP_LLMS_TXT = """# __PRODUCT__
 
@@ -25,132 +17,98 @@ APP_LLMS_TXT = """# __PRODUCT__
 HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>__PRODUCT__ — SEO & AI Search (AEO) Audit</title>
-<meta name="description" content="Free SEO audit plus an AI search (AEO) readiness score. See if ChatGPT, Perplexity and Google AI Overviews can find, read and cite your website — and exactly what to fix.">
-<meta property="og:title" content="__PRODUCT__ — Get found by Google. Get cited by AI.">
-<meta property="og:description" content="Free SEO audit + AI search readiness score in about a minute.">
-<meta property="og:type" content="website"><meta name="theme-color" content="#07080b">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2307080b'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%238ea0ff' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%23f4f1ea'/%3E%3C/svg%3E">
+<title>__PRODUCT__ · SEO + AI search audits</title>
+<meta name="description" content="__PRODUCT__ audits a website for search engines (SEO) and AI answer engines (AEO) and returns a scored fix list.">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#121318" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232b4ad8'/%3E%3Cstop offset='1' stop-color='%236f47e8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M9 21.5a8 8 0 0 1 10.2-10.9' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M16 17.5l4.2-4.6' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='17.5' r='1.9' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script type="application/ld+json">__JSONLD__</script>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>__CSS__</style></head>
 <body>
-<svg class="globe" viewBox="0 0 900 900" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1">
-<circle cx="450" cy="450" r="430"/><ellipse cx="450" cy="450" rx="330" ry="430"/><ellipse cx="450" cy="450" rx="200" ry="430"/><ellipse cx="450" cy="450" rx="70" ry="430"/>
-<ellipse cx="450" cy="450" rx="430" ry="330"/><ellipse cx="450" cy="450" rx="430" ry="200"/><ellipse cx="450" cy="450" rx="430" ry="70"/></g></svg>
-<div class="glow" aria-hidden="true"></div>
-
-<header class="nav">
-  <a class="logo" href="/" aria-label="__PRODUCT__ home"><span class="mark"></span>__PRODUCT__</a>
-  <nav class="links" aria-label="Main">
-    <a href="#how" data-go="landing">How it works</a><a href="#aeo" data-go="landing">AEO</a><a href="#pricing" data-go="landing">Pricing</a>
-    <a href="#" data-view="history">History</a>
-  </nav>
-  <div class="navr">
-    <button class="plan" id="planPill" type="button"><span class="pdot"></span><span id="planLbl">Free</span></button>
-    <button class="btn light sm" id="unlockBtn" type="button">Unlock Pro</button>
+<div class="app">
+<aside class="side" id="side" aria-label="Sidebar">
+  <button class="logo" id="logo" type="button" aria-label="__PRODUCT__ — new audit"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="apg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b4ad8"/><stop offset="1" stop-color="#6f47e8"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#apg)"/><path d="M9 21.5a8 8 0 1 1 14 0" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".55"/><path d="M9 21.5a8 8 0 0 1 10.2-10.9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M16 17.5l4.2-4.6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="17.5" r="1.9" fill="#fff"/></svg><span><span class="bname">__PRODUCT__</span><span class="bsub">SEO · AEO agent</span></span></button>
+  <div class="navl">Workspace</div>
+  <button class="nav on" data-view="new" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/></svg>New audit</button>
+  <button class="nav" data-view="results" id="navResults" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg>Report<span class="cnt" id="navHost"></span></button>
+  <button class="nav" data-view="compare" id="navCompare" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M17 4v16M3 8h8M13 16h8"/></svg>Compare</button>
+  <button class="nav" data-view="history" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>History<span class="cnt" id="histCnt"></span></button>
+  <div class="navl">Account</div>
+  <button class="nav" id="settingsLink" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+  <button class="nav" id="planNav" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>AEO access</button>
+  <div class="sfoot">
+    <div class="plancard"><button class="plan" id="planPill" type="button"><span class="pdot"></span><span id="planLbl">Free</span></button>
+      <p id="planNote">SEO audit is free. AI search (AEO) detail is Pro.</p><button class="btn blue sm" id="unlockBtn" type="button">Unlock Pro</button></div>
+    <div class="made">by <a href="https://__BRAND__" target="_blank" rel="noopener">__BRAND__</a> · <a href="/llms.txt">llms.txt</a></div>
   </div>
-</header>
+</aside>
+<div class="scrim" id="scrim"></div>
+<div class="main">
+  <header class="topbar">
+    <button class="btn ghost icon mtoggle" id="mtoggle" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div><div class="crumb">__PRODUCT__ / <span id="crumb">Workspace</span></div><h1 id="pageTitle">New audit</h1></div>
+    <div class="status" id="status"></div>
+  </header>
+  <main class="content" id="app">
 
-<main id="app">
-<!-- ===================== LANDING ===================== -->
-<section id="landing" class="view on">
-  <div class="hero wrap">
-    <div class="hero-l">
-      <div class="eyebrow"><span class="dot"></span>SEO + AI search audit</div>
-      <h1>Get found by Google.<br><span class="grad">Get cited by AI.</span></h1>
-      <p class="lede">One run checks the 70+ things search engines care about — and whether ChatGPT, Perplexity and Google's AI Overviews can reach, read, trust and quote your site.</p>
+  <!-- NEW AUDIT -->
+  <section id="new" class="view on">
+    <div class="card runner">
+      <div class="mlabel">SEO + AI search audit</div>
+      <h3>Audit a website</h3>
+      <p>Crawls the site like Google and like ChatGPT, Perplexity and Claude, scores 10 SEO areas and 9 AI-search areas, and returns a ranked fix list.</p>
       <form id="auditForm" class="bar" autocomplete="off">
-        <span class="bar-ico" aria-hidden="true">↗</span>
+        <span class="bar-ico" aria-hidden="true">https://</span>
         <input id="url" type="text" inputmode="url" placeholder="yourwebsite.com" aria-label="Website address" required>
         <button class="btn light" id="go" type="submit">Run audit <span aria-hidden="true">→</span></button>
       </form>
-      <div class="chips"><span class="chip"><i class="ok"></i>SEO audit · free</span><span class="chip"><i class="blue"></i>AEO audit · Pro</span><span class="chip muted" id="pagesChip">5 pages</span></div>
+      <div class="chips"><span class="chip"><i class="ok"></i>SEO · free</span><span class="chip"><i class="blue"></i>AEO · Pro</span><span class="chip" id="pagesChip">5 pages</span></div>
       <div class="err" id="err" role="alert"></div>
     </div>
-    <div class="hero-r" id="inspector" aria-live="polite">
-      <div class="card insp c1"><div class="ih"><span>01 · Crawl</span><span class="t">14:02</span></div><b>robots.txt, sitemap, 48 links</b><small>3 broken links · 1 redirect chain</small></div>
-      <div class="card insp c2"><div class="ih"><span>02 · AI access</span><span class="t">14:02</span></div><b>PerplexityBot blocked by firewall</b><small class="warnc">robots.txt allows it · CDN returns 403</small></div>
-      <div class="card insp c3"><div class="ih"><span>03 · Verdict</span><span class="t">14:03</span></div>
-        <div class="vrow"><div><div class="mlabel">SEO health</div><div class="big">78</div></div><div><div class="mlabel">AI search readiness</div><div class="big blue">41</div></div></div>
-        <small>Fix 6 things to get cited in AI answers.</small></div>
-    </div>
-  </div>
-
-  <div class="wrap marquee"><span>Checks for</span><b>ChatGPT search</b><b>Perplexity</b><b>Google AI Overviews</b><b>Claude</b><b>Bing Copilot</b></div>
-
-  <section class="wrap sec" id="aeo">
-    <div class="sec-h"><div class="eyebrow"><span class="dot"></span>Two audits, one run</div><h2>Search engines rank pages.<br><span class="grad">Answer engines quote them.</span></h2></div>
+    <div class="card log" id="inspector" aria-live="polite" hidden></div>
+    <div class="card" id="recentCard" style="margin-bottom:14px" hidden><div class="ph" style="padding:14px 18px 0"><span class="mlabel">Recent audits</span><button class="btn ghost sm" type="button" data-view="history">View all</button></div><div class="tablewrap" id="recent"></div></div>
     <div class="two">
-      <div class="card pane"><div class="ph"><span class="mlabel">SEO audit</span><span class="tag ok">Free</span></div>
-        <ol class="alist" id="seoList"></ol></div>
-      <div class="card pane blue-edge"><div class="ph"><span class="mlabel">AEO audit</span><span class="tag blue">Pro</span></div>
-        <ol class="alist" id="aeoList"></ol></div>
+      <div class="card pane"><div class="ph"><span class="mlabel">SEO audit · 10 areas</span><span class="tag ok">Free</span></div><ol class="alist" id="seoList"></ol></div>
+      <div class="card pane"><div class="ph"><span class="mlabel">AI search audit · 9 areas</span><span class="tag blue">Pro</span></div><ol class="alist" id="aeoList"></ol></div>
     </div>
   </section>
 
-  <section class="wrap sec" id="how">
-    <div class="sec-h"><div class="eyebrow"><span class="dot"></span>How it works</div><h2>From URL to fix list<br><span class="grad">in about a minute.</span></h2></div>
-    <div class="three">
-      <div class="card step"><span class="mlabel">01</span><h3>Crawl like a bot</h3><p>We read your pages, robots.txt, sitemap and every link — then knock on the door as GPTBot, PerplexityBot, Claude and Google to see who gets in.</p></div>
-      <div class="card step"><span class="mlabel">02</span><h3>Score what matters</h3><p>70+ SEO checks and 40+ AEO checks, each pass / warn / fail, weighted by impact. Every finding shows its evidence.</p></div>
-      <div class="card step"><span class="mlabel">03</span><h3>Get the fixes</h3><p>A prioritised action plan, plus ready-to-paste llms.txt, schema markup and robots.txt rules — and a test of whether AI already cites you.</p></div>
-    </div>
-  </section>
-
-  <section class="wrap sec" id="pricing">
-    <div class="sec-h"><div class="eyebrow"><span class="dot"></span>Pricing</div><h2>SEO is free.<br><span class="grad">AI visibility is Pro.</span></h2></div>
-    <div class="two" id="priceCards"></div>
-  </section>
-
-  <section class="wrap sec" id="faq">
-    <div class="sec-h"><div class="eyebrow"><span class="dot"></span>FAQ</div><h2>Questions, answered.</h2></div>
-    <div class="faq">__FAQ__</div>
-  </section>
-</section>
-
-<!-- ===================== RESULTS ===================== -->
-<section id="results" class="view">
-  <div class="wrap">
+  <!-- REPORT -->
+  <section id="results" class="view">
     <div class="rbar card">
       <div><div class="mlabel" id="rMeta"></div><h2 id="rUrl"></h2></div>
       <div class="acts">
-        <button class="btn ghost sm" id="reAudit">Re-audit</button>
-        <button class="btn ghost sm" id="cmpBtn">Compare</button>
-        <button class="btn ghost sm" id="dlHtml">HTML</button>
-        <button class="btn ghost sm" id="dlJson">JSON</button>
-        <button class="btn light sm" id="dlPdf">Download PDF</button>
+        <button class="btn ghost sm" id="reAudit" type="button">Re-audit</button>
+        <button class="btn ghost sm" id="cmpBtn" type="button">Compare</button>
+        <button class="btn ghost sm" id="dlHtml" type="button">HTML</button>
+        <button class="btn ghost sm" id="dlJson" type="button">JSON</button>
+        <button class="btn light sm" id="dlPdf" type="button">Download PDF</button>
       </div>
     </div>
     <div class="scores" id="scores"></div>
     <div class="tabs" role="tablist" id="tabs"></div>
     <div id="panel"></div>
-  </div>
-</section>
+  </section>
 
-<!-- ===================== COMPARE ===================== -->
-<section id="compare" class="view"><div class="wrap">
-  <div class="sec-h"><div class="eyebrow"><span class="dot"></span>Competitor comparison</div><h2>You vs. them.</h2></div>
-  <form id="cmpForm" class="bar"><span class="bar-ico">⇄</span><input id="cmpUrl" placeholder="competitor.com" aria-label="Competitor website" required><button class="btn light" id="cmpGo">Compare →</button></form>
-  <div class="err" id="cmpErr"></div>
-  <div id="cmpOut"></div>
-</div></section>
+  <!-- COMPARE -->
+  <section id="compare" class="view">
+    <div class="card runner"><div class="mlabel">Competitor comparison · Pro</div><h3>You vs. a competitor</h3>
+      <p>Runs a second audit and lines both sites up area by area.</p>
+      <form id="cmpForm" class="bar"><span class="bar-ico" aria-hidden="true">vs</span><input id="cmpUrl" placeholder="competitor.com" aria-label="Competitor website" required><button class="btn light" id="cmpGo">Compare →</button></form>
+      <div class="err" id="cmpErr"></div></div>
+    <div id="cmpOut"></div>
+  </section>
 
-<!-- ===================== HISTORY ===================== -->
-<section id="history" class="view"><div class="wrap">
-  <div class="rbar card"><div><div class="mlabel">Saved in this browser</div><h2>History</h2></div>
-    <div class="acts"><button class="btn ghost sm" id="csv">Export CSV</button><button class="btn ghost sm" id="clear">Clear</button></div></div>
-  <div id="histBody" class="card tablewrap"></div>
-</div></section>
-</main>
+  <!-- HISTORY -->
+  <section id="history" class="view">
+    <div class="phead"><div><h2>History</h2><p>Every audit is saved in this browser only. Click a row to reopen the full report.</p></div>
+      <div class="acts"><button class="btn ghost sm" id="csv" type="button">Export CSV</button><button class="btn ghost sm" id="clear" type="button">Clear</button></div></div>
+    <div id="histBody" class="card tablewrap"></div>
+  </section>
+  </main>
+</div>
+</div>
 
-<footer class="wrap foot">
-  <div><span class="logo sm"><span class="mark"></span>__PRODUCT__</span><p>SEO + AI search audits. Built by <a href="https://__BRAND__">__BRAND__</a>.</p></div>
-  <div class="mono">© <span id="yr"></span> · <a href="/llms.txt">llms.txt</a> · <a href="#" id="settingsLink">Settings</a></div>
-</footer>
-
-<!-- drawer + modals -->
 <div class="drawer" id="drawer" aria-hidden="true"><aside class="dpanel card" id="dpanel" role="dialog" aria-modal="true"></aside></div>
 <div class="modal" id="modal" aria-hidden="true"><div class="mbox card" id="mbox" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status"></div>
@@ -160,30 +118,23 @@ HTML = r"""<!DOCTYPE html>
 
 EMBED = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__PRODUCT__</title>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@500;600&family=Inter+Tight:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
-<style>*{box-sizing:border-box}body{margin:0;font-family:"Inter Tight",system-ui,sans-serif;background:#07080b;color:#f4f1ea}
-.w{padding:22px;border:1px solid rgba(244,241,234,.08);border-radius:18px;background:radial-gradient(60% 80% at 100% 0,rgba(35,64,217,.35),transparent 70%),#0e1116}
-.l{font:500 11px "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:#a9aeb7}
-h2{font-family:"Funnel Display",sans-serif;font-weight:500;letter-spacing:-.03em;font-size:26px;margin:8px 0 14px}h2 span{color:#8ea0ff}
-form{display:flex;gap:8px;background:#07080b;border:1px solid rgba(244,241,234,.12);border-radius:999px;padding:6px}
-input{flex:1;min-width:0;background:none;border:0;color:#f4f1ea;font:500 15px "Inter Tight",sans-serif;padding:10px 14px;outline:none}
-button{border:0;border-radius:999px;background:#f4f1ea;color:#0e1116;font:600 14px "Inter Tight",sans-serif;padding:0 18px;cursor:pointer}
-small{display:block;margin-top:10px;color:#6b7079;font-size:12px}a{color:#8ea0ff}</style></head><body>
-<div class="w"><div class="l">● Free SEO + AI search audit</div><h2>Is your site ready for <span>AI answers?</span></h2>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box}body{margin:0;font-family:"Instrument Sans",system-ui,sans-serif;background:transparent;color:#12141a}
+.w{padding:22px;border:1px solid #e6e8ee;border-radius:14px;background:#fff;background-image:radial-gradient(#d9dde6 1px,transparent 1px);background-size:16px 16px}
+.l{font:500 10.5px "Geist Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:#98a1b0}
+h2{font-weight:600;letter-spacing:-.03em;font-size:22px;margin:6px 0 14px}h2 span{color:#6f47e8}
+form{display:flex;gap:8px;background:#fff;border:1px solid #d7dbe3;border-radius:12px;padding:6px}
+input{flex:1;min-width:0;background:none;border:0;color:#12141a;font:500 15px "Instrument Sans",sans-serif;padding:9px 10px;outline:none}
+button{border:0;border-radius:9px;background:#2b4ad8;color:#fff;font:600 14px "Instrument Sans",sans-serif;padding:0 16px;cursor:pointer}
+small{display:block;margin-top:10px;color:#98a1b0;font-size:12px}a{color:#2b4ad8}
+@media(prefers-color-scheme:dark){body{color:#ecedf1}.w{background-color:#17181e;border-color:#272932;background-image:radial-gradient(#2a2d38 1px,transparent 1px)}form{background:#17181e;border-color:#323542}input{color:#ecedf1}h2 span{color:#a58bff}}</style></head><body>
+<div class="w"><div class="l">Free SEO + AI search audit</div><h2>Is your site ready for <span>AI answers?</span></h2>
 <form target="_blank" action="__ORIGIN__/" method="get"><input name="url" placeholder="yourwebsite.com" aria-label="Website address" required><button>Audit</button></form>
 <small>Powered by <a href="__ORIGIN__/" target="_blank">__PRODUCT__</a></small></div></body></html>"""
 
 
 def render_app(cfg: dict) -> str:
-    faq_html = "".join(f'<details class="card qa"><summary>{q}</summary><p>{a}</p></details>' for q, a in FAQ)
-    jsonld = json.dumps({"@context": "https://schema.org", "@graph": [
-        {"@type": "SoftwareApplication", "name": cfg["product"], "applicationCategory": "BusinessApplication",
-         "operatingSystem": "Web", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
-         "description": "SEO audit and AI search (AEO) readiness audit for websites."},
-        {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in FAQ]},
-    ]})
-    return (HTML.replace("__CSS__", CSS).replace("__JS__", JS).replace("__FAQ__", faq_html)
-            .replace("__JSONLD__", jsonld).replace("__CONFIG__", json.dumps(cfg))
+    return (HTML.replace("__CSS__", CSS).replace("__JS__", JS).replace("__CONFIG__", json.dumps(cfg))
             .replace("__PRODUCT__", cfg["product"]).replace("__BRAND__", cfg["brand"]))
 
 
