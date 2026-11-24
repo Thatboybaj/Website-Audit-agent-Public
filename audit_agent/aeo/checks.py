@@ -149,7 +149,7 @@ def discoverability(site: SiteData) -> AreaResult:
     else:
         checks.append(Check("llms_txt", "llms.txt", "warn",
                             "No /llms.txt. It's an emerging, optional standard: a plain-text map of your key pages for AI tools. Cheap to add; no engine has confirmed ranking on it.",
-                            "Publish /llms.txt (AuditPilot Pro writes one for you from your site).", "low", "easy"))
+                            "Publish /llms.txt (the AEO audit writes one for you from your site).", "low", "easy"))
     full = site.llms_txt.get("llms-full.txt", {})
     checks.append(Check("llms_full", "llms-full.txt", "pass" if full.get("found") else "info",
                         "/llms-full.txt found." if full.get("found") else "No /llms-full.txt (optional full-text version for documentation-heavy sites)."))
@@ -184,7 +184,7 @@ def structured_data(site: SiteData, ld: dict, qs: list) -> AreaResult:
                             "high", "easy"))
     else:
         checks.append(Check("schema_org", "Organization Schema", "fail", "No Organization / LocalBusiness schema — AI engines can't confidently identify the business entity.",
-                            "Add Organization (or LocalBusiness) JSON-LD with name, logo, sameAs, contact (Pro generates it).", "high", "easy"))
+                            "Add Organization (or LocalBusiness) JSON-LD with name, logo, sameAs, contact (the AEO audit generates it).", "high", "easy"))
     checks.append(Check("schema_website", "WebSite Schema", "pass" if ld.get("WebSite") else "warn",
                         "WebSite schema present." if ld.get("WebSite") else "No WebSite schema (names your site for search and AI).",
                         "Add WebSite JSON-LD with name and url.", "low", "easy"))
@@ -193,7 +193,7 @@ def structured_data(site: SiteData, ld: dict, qs: list) -> AreaResult:
         checks.append(Check("schema_faq", "FAQ Schema", "pass", f"FAQPage schema on {len({f['_page'] for f in faq})} page(s)."))
     elif len(qs) >= 3:
         checks.append(Check("schema_faq", "FAQ Schema", "warn", f"{len(qs)} question-and-answer blocks found but no FAQPage schema.",
-                            "Mark up your Q&A blocks as FAQPage so assistants can lift exact answers (Pro generates it).", "medium", "easy"))
+                            "Mark up your Q&A blocks as FAQPage so assistants can lift exact answers (the AEO audit generates it).", "medium", "easy"))
     else:
         checks.append(Check("schema_faq", "FAQ Schema", "warn", "No FAQ content or FAQPage schema.",
                             "Add an FAQ section answering real buyer questions, marked up with FAQPage.", "medium", "medium"))

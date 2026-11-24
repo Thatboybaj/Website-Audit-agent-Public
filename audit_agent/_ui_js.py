@@ -19,14 +19,15 @@ const STEPS = ["Fetching homepage", "Reading robots.txt & sitemap", "Following i
 
 function toast(t) { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove("on"), 2400); }
 function headers() { const h = { "content-type": "application/json" }; if (key) h.authorization = "Bearer " + key; if (code) h["x-pro-code"] = code; return h; }
+const LOCK = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
 const isPro = () => plan === "pro" || plan === "owner";
 
 // ---------------------------------------------------------------- plan
 function setPlan(p) {
   plan = p; const pill = $("#planPill"); pill.className = "plan " + p; $("#planLbl").textContent = CFG.plans[p].label;
-  $("#unlockBtn").textContent = p === "free" ? "Unlock Pro" : p === "owner" ? "Owner" : "Pro active";
-  $("#pagesChip").textContent = CFG.plans[p].max_pages + " pages · " + (p === "free" ? "free" : "AEO unlocked");
-  $("#planNote").textContent = p === "free" ? "SEO audit is free. AI search (AEO) detail is Pro." : p === "owner" ? "Owner key active — every feature, no limits." : "Pro active — full AEO audit, visibility test, compare and white-label.";
+  $("#unlockBtn").innerHTML = p === "free" ? LOCK + " Unlock AEO" : p === "owner" ? "Owner" : "AEO unlocked";
+  $("#pagesChip").textContent = CFG.plans[p].max_pages + " pages · " + (p === "free" ? "SEO only" : "SEO + AEO");
+  $("#planNote").textContent = p === "free" ? "SEO audit is free. The AEO audit unlocks after payment." : p === "owner" ? "Owner key active — every feature, no limits." : "AEO audit unlocked — visibility test, compare and white-label included.";
   $("#unlockBtn").className = "btn sm " + (p === "free" ? "blue" : "ghost");
   if (current) renderResults(current, true);
 }
@@ -148,12 +149,20 @@ async function renderResults(r, keepTab) {
   $("#scores").innerHTML = `
     <div class="card sc"><div class="mlabel">SEO health ${delta(r.overall_score, prev && prev.overall_score)}</div><div class="gwrap">${ring(r.overall_score, col(r.overall_score), "SEO health")}
       <div><span class="band" style="background:${col(r.overall_score)}22;color:${col(r.overall_score)}">${esc(r.band.label)}</span><p>${esc(r.band.description)}</p></div></div></div>
-    <div class="card sc ${aeoOk(r) ? "" : "dim"}"><div class="mlabel">AI search readiness ${aeoOk(r) ? delta(A.score, prev && prev.aeo && prev.aeo.score) : ""}</div>${aeoOk(r) ? `<div class="gwrap">${ring(A.score, "var(--aeo)", "AI search readiness")}
-      <div><span class="band" style="background:var(--aeo-soft);color:var(--aeo-ink)">${esc(A.band.label)}</span><p>${A.locked ? `${A.issues_hidden} AI-search issues found. <a href="#" onclick="openUnlock();return false">Unlock the fixes →</a>` : "How ready the site is to be found and cited by AI assistants."}</p></div></div>` : `<p style="margin-top:14px">AEO not run.</p>`}</div>
+    ${A.locked ? `<div class="card sc upsell" style="display:block;margin:0"><div class="mlabel">AI search audit (AEO) · locked</div>
+      <h3 style="margin-top:10px">Can AI find and cite this site?</h3>
+      <p style="margin:6px 0 12px">Checks ChatGPT, Perplexity, Claude and Google AI Overviews access, schema, answer-ready content and more.</p>
+      <button class="btn blue sm" onclick="openUnlock()">${LOCK} Unlock AEO audit</button></div>`
+    : `<div class="card sc ${aeoOk(r) ? "" : "dim"}"><div class="mlabel">AI search readiness ${aeoOk(r) ? delta(A.score, prev && prev.aeo && prev.aeo.score) : ""}</div>${aeoOk(r) ? `<div class="gwrap">${ring(A.score, "var(--aeo)", "AI search readiness")}
+      <div><span class="band" style="background:var(--aeo-soft);color:var(--aeo-ink)">${esc(A.band.label)}</span><p>How ready the site is to be found and cited by AI assistants.</p></div></div>` : `<p style="margin-top:14px">AEO not run.</p>`}</div>`}
     <div class="card sc"><div class="mlabel">Issues</div><div class="statn"><div><b class="bad">${c.critical}</b><span>critical</span></div><div><b class="mid">${c.warnings}</b><span>warnings</span></div><div><b class="okc">${c.passed}</b><span>passed</span></div></div></div>
-    <div class="card sc"><div class="mlabel">AI crawlers</div><div class="statn"><div><b>${okBots}/${bots.length || 0}</b><span>search bots allowed</span></div></div>
-      <p style="margin-top:10px">${fw ? `<span class="bad">${fw} blocked by firewall/CDN</span>` : bots.length ? '<span class="okc">No firewall blocks detected</span>' : ""}</p></div>`;
-  const T = [["overview", "Overview"], ["seo", "SEO · 10 areas"], ["aeo", "AI search (AEO)" + (A.locked ? '<span class="tag blue">Pro</span>' : "")], ["fixes", "Fix list"], ["pages", "Pages"], ["tech", "Tech stack"]];
+    ${A.locked ? `<div class="card sc"><div class="mlabel">Crawl</div><div class="statn"><div><b>${pages}</b><span>pages audited</span></div><div><b>${(r.meta.crawl || {}).links_checked ?? 0}</b><span>links checked</span></div></div></div>` : `<div class="card sc"><div class="mlabel">AI crawlers</div><div class="statn"><div><b>${okBots}/${bots.length || 0}</b><span>search bots allowed</span></div></div>
+      <p style="margin-top:10px">${fw ? `<span class="bad">${fw} blocked by firewall/CDN</span>` : bots.length ? '<span class="okc">No firewall blocks detected</span>' : ""}</p></div>`}`;
+  const ab = $("#aeoBtn");
+  if (A.locked && !isPro()) { ab.className = "btn blue sm"; ab.innerHTML = LOCK + " AEO audit"; ab.onclick = () => openUnlock(); }
+  else if (A.locked) { ab.className = "btn blue sm"; ab.innerHTML = "Run AEO audit"; ab.onclick = () => $("#reAudit").click(); }
+  else { ab.className = "btn ghost sm"; ab.innerHTML = "AEO audit"; ab.onclick = () => { const t = $('#tabs [data-t="aeo"]'); t && t.click(); }; }
+  const T = [["overview", "Overview"], ["seo", "SEO · 10 areas"], ...(A.locked ? [] : [["aeo", "AI search (AEO)"]]), ["fixes", "Fix list"], ["pages", "Pages"], ["tech", "Tech stack"]];
   if (r.outreach_email) T.push(["email", "Outreach email"]);
   $("#tabs").innerHTML = T.map(([k, n]) => `<button class="tab ${k === tab ? "on" : ""}" role="tab" aria-selected="${k === tab}" data-t="${k}">${n}</button>`).join("");
   $$("#tabs .tab").forEach(b => b.onclick = () => { tab = b.dataset.t; $$("#tabs .tab").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", x === b); }); renderTab(); });
@@ -178,7 +187,7 @@ function tOverview(r) {
       <div class="kv">${r.areas.slice(0, 8).map(a => `<div><span class="mlabel">${esc(a.key_metric_label)}</span><b>${esc(a.key_metric_value)}</b></div>`).join("")}</div></div>
     <div class="card panel2"><div class="mlabel">How Google shows you</div><div class="serp"><div class="u">${esc(host(r.url))} › </div><div class="t">${esc(home.title || "(no title)")}</div><div class="d">${esc(home.desc || "No meta description — Google will pick random text from the page.")}</div></div>
       <div class="mlabel" style="margin-top:18px">How AI would describe you</div>${A.ai && A.ai.ai_description ? `<p class="summary">${esc(A.ai.ai_description)}</p>` :
-        A.locked ? `<p class="dim" style="margin:8px 0 0">Pro shows how ChatGPT-style assistants would describe this business, and what facts they can't find. <a href="#" onclick="openUnlock();return false">Unlock →</a></p>` : `<p class="dim" style="margin:8px 0 0">Run with AI enabled to see this.</p>`}</div></div>
+        A.locked ? `<p class="dim" style="margin:8px 0 10px">Part of the AEO audit: how ChatGPT-style assistants would describe this business, and which facts they can't find.</p><button class="btn ghost sm" onclick="openUnlock()">${LOCK} Unlock AEO audit</button>` : `<p class="dim" style="margin:8px 0 0">Run with AI enabled to see this.</p>`}</div></div>
   <div class="split"><div class="card panel2"><div class="mlabel">Fix first</div><ol class="prio">${[...aeoTop.map(c => ({ check: c.label, area: c.area, impact: c.impact, effort: c.effort, detail: c.detail, fix: c.fix })), ...r.action_plan.prioritize].slice(0, 8).map((it, i) => `
       <li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(it.check)}</b><div class="meta"><span class="tag">${esc(it.area)}</span><span class="tag ${it.impact === "high" ? "fail" : ""}">${esc(it.impact)} impact</span><span class="tag">${esc(it.effort)}</span></div>
       <p>${esc(it.detail)}</p><p class="fx">→ ${esc(it.fix)}</p></div></li>`).join("") || "<li>No critical issues.</li>"}</ol></div>
@@ -205,15 +214,7 @@ function tAeo(r) {
   const A = r.aeo;
   if (!A || A.error) return `<div class="card panel2">AEO audit unavailable${A && A.error ? ": " + esc(A.error) : ""}.</div>`;
   const P = CFG.pricing;
-  if (A.locked) {
-    return `<div class="card upsell"><div><div class="mlabel">AI search readiness · ${A.score}/100</div><h3>${A.issues_hidden} issues are stopping AI from citing ${esc(host(r.url))}.</h3>
-      <p>Unlock the full AEO audit: what each issue is, how to fix it, ready-to-paste llms.txt & schema, and a live test of whether ChatGPT-style answer engines already cite you.</p></div>
-      <div style="text-align:right"><div class="big" style="font-size:44px">${esc(P.aeo_report)}</div><div class="mlabel" style="margin:4px 0 12px">per report · or ${esc(P.pro_monthly)}</div><button class="btn blue" onclick="openUnlock()">Unlock Pro</button></div></div>
-      <div class="mlabel" style="margin:20px 0 10px">Who can reach your site (free preview)</div>${botsTable(A)}
-      <div class="grid">${A.areas.map((a, i) => areaCard(a, "aeo", i, true)).join("")}</div>
-      <div class="mlabel" style="margin:20px 0 10px">Ready-to-paste fixes (Pro)</div>
-      <div class="grid g3">${Object.values(A.fixes || {}).map(f => `<div class="card fixc lock"><b>${esc(f.title)}</b><div class="code blur"><pre>{ "generated": "for ${esc(host(r.url))}", … }</pre></div></div>`).join("")}</div>`;
-  }
+  if (A.locked) return `<div class="card upsell"><div><div class="mlabel">AI search audit · locked</div><h3>Unlock the AEO audit for ${esc(host(r.url))}</h3></div><button class="btn blue" onclick="openUnlock()">${LOCK} Unlock AEO audit</button></div>`;
   const ai = A.ai || {};
   const qs = (A.visibility && A.visibility.questions) || ai.buyer_questions || [];
   return `${ai.ai_description || (ai.missing || []).length ? `<div class="split"><div class="card panel2"><div class="mlabel">How an AI assistant would describe ${esc(A.brand)}</div><p class="summary">${esc(ai.ai_description || "—")}</p></div>
@@ -259,7 +260,7 @@ function allIssues(r) {
 }
 function tFixes(r) {
   const items = allIssues(r), done = new Set(ls.get("ap_done:" + host(r.url), [])); const n = items.filter(i => done.has(i.id)).length;
-  return `<div class="card panel2"><div class="ph" style="margin:0"><div><div class="mlabel">Fix list · ${items.length} items${r.aeo && r.aeo.locked ? " · AEO fixes locked" : ""}</div><h3 id="todoCount">${n} of ${items.length} done</h3></div>
+  return `<div class="card panel2"><div class="ph" style="margin:0"><div><div class="mlabel">Fix list · ${items.length} items${r.aeo && r.aeo.locked ? " · SEO only (AEO locked)" : ""}</div><h3 id="todoCount">${n} of ${items.length} done</h3></div>
     <button class="btn ghost sm" onclick="copyAll()">Copy as checklist</button></div><div class="prog"><i id="todoBar" style="width:${items.length ? n / items.length * 100 : 0}%"></i></div>
     <ul class="todo">${items.map(i => `<li class="sev-${i.status} ${done.has(i.id) ? "done" : ""}"><input type="checkbox" data-todo="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""} aria-label="Mark ${esc(i.title)} done">
       <div><b>${esc(i.title)}</b> <span class="tag ${tagFor(i.status)}">${esc(i.status)}</span> <span class="tag">${esc(i.area)}</span><p>${esc(i.detail)}</p><p style="color:var(--ink)">→ ${esc(i.fix)}</p></div>
@@ -319,16 +320,24 @@ function bindLead(interest) {
       m.className = "okc"; m.textContent = "Thanks — you'll hear back shortly."; } catch (err) { m.className = "bad"; m.textContent = err.message; } };
 }
 window.openUnlock = () => {
-  const P = CFG.pricing;
-  openModal(`<div class="ph" style="margin:0"><span class="mlabel">${plan === "free" ? "Unlock Pro" : "Your plan: " + CFG.plans[plan].label}</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
-    <h2>Get cited by AI.</h2><p class="dim">${esc(P.aeo_report)} per report or ${esc(P.pro_monthly)} · ${esc(P.currency_note)}</p>
-    <ul class="alist" style="margin-top:10px">${P.pro_features.slice(1, 7).map(f => `<li><div>${esc(f)}</div></li>`).join("")}</ul>
-    ${P.checkout_url ? `<a class="btn blue" style="width:100%;margin-top:14px" href="${esc(P.checkout_url)}" target="_blank" rel="noopener">Buy Pro</a>` : ""}
-    <div class="mtabs"><button class="btn ghost sm" id="mtCode" type="button">I have a code</button><button class="btn ghost sm" id="mtReq" type="button">Request access</button></div><div id="mtBody"></div>
-    ${plan !== "free" ? `<button class="btn ghost sm" style="margin-top:14px" type="button" onclick="signOut()">Use free plan</button>` : ""}`);
-  const codeView = () => { $("#mtBody").innerHTML = `<form id="codeF"><label class="fl" for="codeIn">Pro access code</label><input class="inp" id="codeIn" autocomplete="off" value="${esc(code)}"><button class="btn light" style="margin-top:12px;width:100%">Unlock</button><p id="codeMsg" class="bad" style="font-size:14px"></p></form>`;
-    $("#codeF").onsubmit = async e => { e.preventDefault(); const c = $("#codeIn").value.trim(); if (await verifyCode(c)) { code = c; ls.set("ap_code", c); setPlan(key ? "owner" : "pro"); closeModal(); toast("Pro unlocked — re-run the audit for full AEO detail"); if (current) { $("#url").value = current.url; } } else $("#codeMsg").textContent = "That code isn't valid."; }; };
-  $("#mtCode").onclick = codeView; $("#mtReq").onclick = () => { $("#mtBody").innerHTML = leadForm("pro", "Request Pro access", "Tell me about your site or agency"); bindLead("pro"); };
+  const P = CFG.pricing, h = current ? esc(host(current.url)) : "your site";
+  if (plan !== "free") {
+    openModal(`<div class="ph" style="margin:0"><span class="mlabel">AEO audit · unlocked</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
+      <h2>AEO audit is unlocked</h2><p class="dim">Every audit on this browser now includes the full AI search audit, visibility test and ready-to-paste fixes.</p>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${current && current.aeo && current.aeo.locked ? `<button class="btn blue" type="button" onclick="closeModal();$('#reAudit').click()">Run AEO audit for ${h}</button>` : ""}<button class="btn ghost" type="button" onclick="signOut()">Lock again</button></div>`);
+    return;
+  }
+  openModal(`<div class="ph" style="margin:0"><span class="mlabel">${LOCK} AEO audit · locked</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
+    <h2>Unlock the AEO audit</h2><p class="dim">See whether ChatGPT, Perplexity, Claude and Google AI Overviews can find, read and cite ${h} — with the exact fixes, ready to paste.</p>
+    ${P.checkout_url ? `<a class="btn blue" style="width:100%;margin-top:16px" href="${esc(P.checkout_url)}" rel="noopener">${LOCK} Pay & unlock</a>`
+      : `<button class="btn blue" style="width:100%;margin-top:16px" type="button" disabled title="Payment is being set up">${LOCK} Pay & unlock · coming soon</button>`}
+    <div id="mtBody"></div>
+    <p class="dim" style="font-size:12.5px;margin:12px 0 0">No unlock code yet? <a href="#" id="mtReq">Request access</a></p>`);
+  const codeView = () => { $("#mtBody").innerHTML = `<form id="codeF"><label class="fl" for="codeIn">Already paid? Enter your unlock code</label><div style="display:flex;gap:8px"><input class="inp" id="codeIn" autocomplete="off" value="${esc(code)}"><button class="btn light">Unlock</button></div><p id="codeMsg" class="bad" style="font-size:13px;margin:6px 0 0"></p></form>`;
+    $("#codeF").onsubmit = async e => { e.preventDefault(); const c = $("#codeIn").value.trim(); if (!(await verifyCode(c))) { $("#codeMsg").textContent = "That code isn't valid."; return; }
+      code = c; ls.set("ap_code", c); setPlan(key ? "owner" : "pro"); closeModal();
+      if (current && current.aeo && current.aeo.locked) { toast("Unlocked — running the AEO audit"); $("#reAudit").click(); } else toast("AEO audit unlocked"); }; };
+  $("#mtReq").onclick = e => { e.preventDefault(); $("#mtBody").innerHTML = leadForm("pro", "Request access", "Tell me about your site or agency"); bindLead("pro"); };
   codeView();
 };
 window.openLead = (interest) => { openModal(`<div class="ph" style="margin:0"><span class="mlabel">Done-for-you fixes</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div><h2>Get this fixed.</h2><p class="dim">Send the report and get a quote for the SEO + AI search fixes.</p>${leadForm(interest, "Request a quote", "Anything specific you want fixed?")}`); bindLead(interest); };
@@ -338,7 +347,7 @@ $("#unlockBtn").onclick = () => openUnlock(); $("#planPill").onclick = () => ope
 function openSettings() {
   const b = ls.get("ap_brand", {}); const can = isPro(); const origin = location.origin;
   openModal(`<div class="ph" style="margin:0"><span class="mlabel">Settings</span><button class="btn ghost sm" type="button" onclick="closeModal()">Close</button></div>
-    <h2>White-label reports</h2><p class="dim">${can ? "Your brand on PDF and HTML reports." : "Pro feature — put your agency's brand on every report."}</p>
+    <h2>White-label reports</h2><p class="dim">${can ? "Your brand on PDF and HTML reports." : "Unlocks with the AEO audit — put your agency's brand on every report."}</p>
     <fieldset ${can ? "" : "disabled"} style="border:0;padding:0;margin:0;${can ? "" : "opacity:.5"}">
     <label class="fl" for="bName">Agency name</label><input class="inp" id="bName" value="${esc(b.name || "")}">
     <label class="fl" for="bLogo">Logo URL</label><input class="inp" id="bLogo" value="${esc(b.logo || "")}" placeholder="https://…/logo.png">

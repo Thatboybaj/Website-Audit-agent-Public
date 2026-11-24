@@ -61,7 +61,7 @@ def test_free_plan_hides_paid_detail(report):
     a = json.dumps(free["aeo"])
     assert free["aeo"]["locked"] and free["aeo"]["issues_hidden"] > 0
     assert "User-agent:" not in a and "acceptedAnswer" not in a and free["outreach_email"] == ""
-    assert all(c["fix"] == "" for ar in free["aeo"]["areas"] for c in ar["checks"])
+    assert "areas" not in free["aeo"] and "score" not in free["aeo"] and "bots" not in free["aeo"]
     pro = plans.redact(report, "pro")
     assert not pro["aeo"].get("locked") and pro["aeo"]["fixes"]["robots"]["code"]
 

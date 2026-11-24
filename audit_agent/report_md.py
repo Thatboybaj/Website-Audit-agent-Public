@@ -54,10 +54,10 @@ def to_markdown(r: dict) -> str:
             out.append(f"- {ICON.get(c['status'], '')} **{c['label']}** — {c['detail']}")
         out.append("")
     A = r.get("aeo")
-    if A and not A.get("error"):
+    if A and A.get("locked"):
+        out += ["## AI search audit (AEO): locked", "", "_Unlock the AEO audit to see whether AI answer engines can find and cite this site._", ""]
+    elif A and not A.get("error"):
         out += [f"## AI search readiness (AEO): {A['score']}/100 — {A['band']['label']}", ""]
-        if A.get("locked"):
-            out += [f"_{A.get('issues_hidden', 0)} AI-search issues found — full detail and fixes are in the Pro report._", ""]
         out += ["| Crawler | Role | robots.txt | Live |", "|---|---|---|---|"]
         out += [f"| {b['bot']} | {b.get('role_label', b['role'])} | {b['robots']} | {b.get('live') or '—'} |" for b in A.get("bots", [])]
         out.append("")

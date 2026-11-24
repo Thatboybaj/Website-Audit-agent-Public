@@ -35,10 +35,10 @@ HTML = r"""<!DOCTYPE html>
   <button class="nav" data-view="history" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>History<span class="cnt" id="histCnt"></span></button>
   <div class="navl">Account</div>
   <button class="nav" id="settingsLink" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
-  <button class="nav" id="planNav" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>AEO access</button>
+  <button class="nav" id="planNav" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>Unlock AEO</button>
   <div class="sfoot">
     <div class="plancard"><button class="plan" id="planPill" type="button"><span class="pdot"></span><span id="planLbl">Free</span></button>
-      <p id="planNote">SEO audit is free. AI search (AEO) detail is Pro.</p><button class="btn blue sm" id="unlockBtn" type="button">Unlock Pro</button></div>
+      <p id="planNote">SEO audit is free. The AEO audit unlocks after payment.</p><button class="btn blue sm" id="unlockBtn" type="button">Unlock AEO</button></div>
     <div class="made">by <a href="https://__BRAND__" target="_blank" rel="noopener">__BRAND__</a> · <a href="/llms.txt">llms.txt</a></div>
   </div>
 </aside>
@@ -62,14 +62,14 @@ HTML = r"""<!DOCTYPE html>
         <input id="url" type="text" inputmode="url" placeholder="yourwebsite.com" aria-label="Website address" required>
         <button class="btn light" id="go" type="submit">Run audit <span aria-hidden="true">→</span></button>
       </form>
-      <div class="chips"><span class="chip"><i class="ok"></i>SEO · free</span><span class="chip"><i class="blue"></i>AEO · Pro</span><span class="chip" id="pagesChip">5 pages</span></div>
+      <div class="chips"><span class="chip"><i class="ok"></i>SEO · free</span><span class="chip"><i class="blue"></i>AEO · locked</span><span class="chip" id="pagesChip">5 pages</span></div>
       <div class="err" id="err" role="alert"></div>
     </div>
     <div class="card log" id="inspector" aria-live="polite" hidden></div>
     <div class="card" id="recentCard" style="margin-bottom:14px" hidden><div class="ph" style="padding:14px 18px 0"><span class="mlabel">Recent audits</span><button class="btn ghost sm" type="button" data-view="history">View all</button></div><div class="tablewrap" id="recent"></div></div>
     <div class="two">
       <div class="card pane"><div class="ph"><span class="mlabel">SEO audit · 10 areas</span><span class="tag ok">Free</span></div><ol class="alist" id="seoList"></ol></div>
-      <div class="card pane"><div class="ph"><span class="mlabel">AI search audit · 9 areas</span><span class="tag blue">Pro</span></div><ol class="alist" id="aeoList"></ol></div>
+      <div class="card pane"><div class="ph"><span class="mlabel">AI search audit · 9 areas</span><span class="tag blue">Locked</span></div><ol class="alist" id="aeoList"></ol></div>
     </div>
   </section>
 
@@ -78,6 +78,7 @@ HTML = r"""<!DOCTYPE html>
     <div class="rbar card">
       <div><div class="mlabel" id="rMeta"></div><h2 id="rUrl"></h2></div>
       <div class="acts">
+        <button class="btn blue sm" id="aeoBtn" type="button">AEO audit</button>
         <button class="btn ghost sm" id="reAudit" type="button">Re-audit</button>
         <button class="btn ghost sm" id="cmpBtn" type="button">Compare</button>
         <button class="btn ghost sm" id="dlHtml" type="button">HTML</button>
@@ -92,7 +93,7 @@ HTML = r"""<!DOCTYPE html>
 
   <!-- COMPARE -->
   <section id="compare" class="view">
-    <div class="card runner"><div class="mlabel">Competitor comparison · Pro</div><h3>You vs. a competitor</h3>
+    <div class="card runner"><div class="mlabel">Competitor comparison · unlocked with AEO</div><h3>You vs. a competitor</h3>
       <p>Runs a second audit and lines both sites up area by area.</p>
       <form id="cmpForm" class="bar"><span class="bar-ico" aria-hidden="true">vs</span><input id="cmpUrl" placeholder="competitor.com" aria-label="Competitor website" required><button class="btn light" id="cmpGo">Compare →</button></form>
       <div class="err" id="cmpErr"></div></div>

@@ -62,7 +62,7 @@ pre{margin:8px 0 0;background:#0e1116;color:#dfe4ff;border-radius:10px;padding:1
 
 <div class="scores">
   <div class="card"><div class="m">SEO health</div><div class="g">{{ ring(r.overall_score, col(r.overall_score)) }}<div><span class="band" style="background:{{ col(r.overall_score) }}22;color:{{ col(r.overall_score) }}">{{ r.band.label }}</span><div style="font-size:12.5px;color:var(--muted)">{{ r.band.description }}</div></div></div></div>
-  <div class="card {{ 'lockbox' if A and A.locked }}"><div class="m">AI search readiness</div>{% if A and not A.error %}<div class="g">{{ ring(A.score, '#6f47e8') }}<div><span class="band" style="background:#f1ecfe;color:#5532c9">{{ A.band.label }}</span><div style="font-size:12.5px;color:var(--muted)">{{ 'Full AEO detail is in the Pro report.' if A.locked else 'Ready to be found and cited by AI assistants.' }}</div></div></div>{% else %}<p>Not run.</p>{% endif %}</div>
+  <div class="card {{ 'lockbox' if A and A.locked }}"><div class="m">AI search readiness</div>{% if A and A.locked %}<h3 style="margin-top:12px">Locked</h3><p style="font-size:12.5px;color:var(--muted)">The AEO audit is not included in this report.</p>{% elif A and not A.error %}<div class="g">{{ ring(A.score, '#6f47e8') }}<div><span class="band" style="background:#f1ecfe;color:#5532c9">{{ A.band.label }}</span><div style="font-size:12.5px;color:var(--muted)">Ready to be found and cited by AI assistants.</div></div></div>{% else %}<p>Not run.</p>{% endif %}</div>
   <div class="card"><div class="m">Issues</div><div class="n3"><div><b style="color:var(--fail)">{{ r.action_plan.counts.critical }}</b><span>critical</span></div><div><b style="color:var(--warn)">{{ r.action_plan.counts.warnings }}</b><span>warnings</span></div><div><b style="color:var(--pass)">{{ r.action_plan.counts.passed }}</b><span>passed</span></div></div></div>
   <div class="card dark"><div class="m">AI crawlers</div>{% if A and A.bots %}{% set sb = A.bots|selectattr('role','equalto','search')|list %}<div class="n3"><div><b>{{ sb|rejectattr('robots','equalto','blocked')|list|length }}/{{ sb|length }}</b><span style="color:#a9aeb7">search bots allowed</span></div></div>
     <div style="font-size:12.5px;margin-top:8px;color:#a9aeb7">{{ (A.bots|selectattr('live','equalto','blocked')|list|length) ~ ' blocked by firewall' if A.bots|selectattr('live','equalto','blocked')|list else 'No firewall blocks detected' }}</div>{% else %}<p>—</p>{% endif %}</div>
@@ -76,7 +76,7 @@ pre{margin:8px 0 0;background:#0e1116;color:#dfe4ff;border-radius:10px;padding:1
 <h2 class="pb">SEO audit · 10 areas</h2>
 <div class="areas">{% for a in r.areas %}{{ area(a, false) }}{% endfor %}</div>
 
-{% if A and not A.error %}
+{% if A and not A.error and not A.locked %}
 <h2 class="pb">AI search (AEO) audit</h2>
 {% if A.locked %}
 <div class="card lockbox"><h3>AI search readiness: {{ A.score }}/100 · {{ A.issues_hidden }} issues found</h3><p style="color:var(--muted)">The Pro report explains each AI-search issue, how to fix it, includes ready-to-paste llms.txt and schema markup, and tests whether AI answer engines cite this site today.</p>

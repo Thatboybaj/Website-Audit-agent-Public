@@ -1,4 +1,4 @@
-"""Plans & entitlements. Free = full SEO audit + AEO score teaser. Pro = full AEO, AI visibility, fixes, white-label.
+"""Plans & entitlements. Free = full SEO audit, AEO locked (nothing from it is sent). Pro = full AEO, AI visibility, fixes, white-label.
 No payment provider yet: Pro is unlocked with access codes (PRO_CODES). When payments arrive, the checkout
 webhook only needs to issue a code (or set a plan on a user) — nothing else changes."""
 from __future__ import annotations
@@ -10,7 +10,7 @@ import time
 PLANS = {
     "free": {"label": "Free", "max_pages": 5, "aeo_full": False, "visibility": False, "ai": False,
              "white_label": False, "compare": False, "email": False, "fixes": False},
-    "pro": {"label": "Pro", "max_pages": 25, "aeo_full": True, "visibility": True, "ai": True,
+    "pro": {"label": "AEO unlocked", "max_pages": 25, "aeo_full": True, "visibility": True, "ai": True,
             "white_label": True, "compare": True, "email": True, "fixes": True},
     "owner": {"label": "Owner", "max_pages": 50, "aeo_full": True, "visibility": True, "ai": True,
               "white_label": True, "compare": True, "email": True, "fixes": True},
@@ -59,7 +59,7 @@ def over_limit(key: str, limit: int, window: int) -> bool:
     return False
 
 
-LOCK_NOTE = "Unlock Pro to see what's wrong and how to fix it."
+LOCK_NOTE = "Unlock the AEO audit to see what's wrong and how to fix it."
 
 
 def redact(report: dict, plan: str) -> dict:
@@ -71,11 +71,7 @@ def redact(report: dict, plan: str) -> dict:
         r["outreach_email"] = ""
     a = r.get("aeo")
     if a and not a.get("error") and not ent["aeo_full"]:
-        for area in a.get("areas", []):
-            for c in area.get("checks", []):
-                c.update({"detail": LOCK_NOTE if c["status"] in ("warn", "fail") else "", "fix": "", "pages": [], "data": {}, "locked": True})
-        locked_fixes = {k: {"title": v["title"], "locked": True} for k, v in (a.get("fixes") or {}).items()}
-        a.update({"fixes": locked_fixes, "ai": {}, "questions_found": [], "visibility": None, "locked": True,
-                  "bots": [{k: b[k] for k in ("bot", "company", "role", "role_label", "engine", "robots", "live")} for b in a.get("bots", [])]})
-        a["issues_hidden"] = sum(c["status"] in ("warn", "fail") for area in a.get("areas", []) for c in area.get("checks", []))
+        # Locked: the AEO audit ran (so unlocking is instant to explain), but nothing from it leaves the server.
+        hidden = sum(c["status"] in ("warn", "fail") for area in a.get("areas", []) for c in area.get("checks", []))
+        r["aeo"] = {"locked": True, "issues_hidden": hidden, "brand": a.get("brand", "")}
     return r
